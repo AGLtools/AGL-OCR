@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# PyInstaller
+packaging/build/
+dist/
+
+# OCR cache (large PNG files, regenerated automatically)
+data/cache/
+
+# User exports (generated output, not source)
+data/exports/
+
+# Bundled binaries — large, OS-specific, downloaded separately (see README)
+poppler/
+tesseract/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
+*.log

@@ -1,0 +1,6 @@
+# Override these if Tesseract / Poppler are not on PATH (Windows defaults).
+# Leave as null to use system PATH.
+tesseract_cmd: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+poppler_path: null  # e.g. "C:\\poppler-24.02.0\\Library\\bin"
+ocr_lang: "eng"
+pdf_dpi: 250

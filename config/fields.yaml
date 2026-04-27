@@ -1,0 +1,67 @@
+# Standard AGL maritime logistics fields.
+# Each field has display label, type hint, and keywords used for auto-mapping.
+fields:
+  - key: BL_Number
+    label: "B/L Number"
+    type: string
+    keywords: ["bill of lading", "b/l no", "bl no", "bl number", "document no"]
+  - key: Booking_Number
+    label: "Booking Number"
+    type: string
+    keywords: ["booking no", "booking number", "booking ref"]
+  - key: Container_Number
+    label: "Container Number"
+    type: string
+    keywords: ["container no", "container number", "container", "ctnr"]
+  - key: Seal_Number
+    label: "Seal Number"
+    type: string
+    keywords: ["seal no", "seal number", "seal"]
+  - key: Vessel_Name
+    label: "Vessel Name"
+    type: string
+    keywords: ["vessel", "vessel name", "ship name", "m/v"]
+  - key: Voyage_Number
+    label: "Voyage Number"
+    type: string
+    keywords: ["voyage", "voyage no", "voy"]
+  - key: Date
+    label: "Date"
+    type: date
+    keywords: ["date", "issue date", "shipped on"]
+  - key: Port_of_Loading
+    label: "Port of Loading"
+    type: string
+    keywords: ["port of loading", "pol", "loading port", "from"]
+  - key: Port_of_Discharge
+    label: "Port of Discharge"
+    type: string
+    keywords: ["port of discharge", "pod", "discharge port", "to"]
+  - key: Shipper
+    label: "Shipper"
+    type: string
+    keywords: ["shipper", "exporter"]
+  - key: Consignee
+    label: "Consignee"
+    type: string
+    keywords: ["consignee", "importer"]
+  - key: Notify_Party
+    label: "Notify Party"
+    type: string
+    keywords: ["notify party", "notify"]
+  - key: Gross_Weight
+    label: "Gross Weight"
+    type: number
+    keywords: ["gross weight", "weight kg", "kgs", "kg", "weight"]
+  - key: Net_Weight
+    label: "Net Weight"
+    type: number
+    keywords: ["net weight"]
+  - key: Quantity
+    label: "Quantity / Packages"
+    type: number
+    keywords: ["packages", "pkgs", "quantity", "no of pkgs"]
+  - key: Description
+    label: "Description of Goods"
+    type: string
+    keywords: ["description of goods", "description", "commodity"]
