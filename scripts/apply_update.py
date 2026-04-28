@@ -19,7 +19,7 @@ from pathlib import Path
 
 REPO_OWNER     = "AGLtools"
 REPO_NAME      = "AGL-OCR"
-DEFAULT_BRANCH = "main"
+DEFAULT_BRANCH = "master"
 
 SYNC_INCLUDES = {
     "app.py",

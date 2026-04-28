@@ -45,7 +45,7 @@ APP_VERSION = "1.0.0"
 
 REPO_OWNER      = "AGLtools"
 REPO_NAME       = "AGL-OCR"
-DEFAULT_BRANCH  = "main"
+DEFAULT_BRANCH  = "master"
 
 # Paths inside the repo we want to sync. Anything else is ignored.
 SYNC_INCLUDES = {
