@@ -1,0 +1,4 @@
+{
+  "comment": "Paths used by BUILD_ALL.bat. Edit if your tools live elsewhere.",
+  "iscc_path": "C:\\Inno Setup 6\\ISCC.exe"
+}

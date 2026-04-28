@@ -94,8 +94,18 @@ class OCREngine:
     # ============================================================
     # Document loading (rendering only — OCR is lazy)
     # ============================================================
-    def load_document(self, file_path: str | Path) -> List[Page]:
-        """Render every page to PNG (preprocessed). Does NOT OCR yet."""
+    def load_document(
+        self,
+        file_path: str | Path,
+        max_pages: int | None = None,
+    ) -> List[Page]:
+        """Render pages to PNG (preprocessed). Does NOT OCR yet.
+
+        If ``max_pages`` is given (e.g. 1 for a quick preview), only that
+        many pages are rendered. The remaining pages can be lazily rendered
+        later, but the typical use is "manifest mode" where the state-machine
+        parser does its own pdfplumber pass and we only need a thumbnail.
+        """
         file_path = Path(file_path)
         suffix = file_path.suffix.lower()
         doc_hash = hashlib.md5(file_path.read_bytes()).hexdigest()[:12]
@@ -106,6 +116,9 @@ class OCREngine:
             kwargs = {"dpi": self.dpi}
             if self.poppler_path:
                 kwargs["poppler_path"] = self.poppler_path
+            if max_pages is not None:
+                kwargs["first_page"] = 1
+                kwargs["last_page"] = max_pages
             images = convert_from_path(str(file_path), **kwargs)
         elif suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}:
             images = [Image.open(file_path).convert("RGB")]
@@ -339,3 +352,60 @@ class OCREngine:
             group.sort(key=lambda t: t.x)
             out_lines.append(" ".join(t.text for t in group))
         return "\n".join(out_lines).strip()
+
+    # ============================================================
+    # TABLE-MODE row detection
+    # ============================================================
+    @staticmethod
+    def detect_row_y_centers(tokens: List[Token],
+                             zone: tuple[int, int, int, int],
+                             ref_row_y: int,
+                             ref_row_h: int) -> list[int]:
+        """Find Y-centers of every probable data row inside `zone`.
+
+        Strategy: cluster tokens by Y proximity (within ~ref_row_h of each
+        other), then keep clusters whose vertical center >= ref_row_y.
+
+        `ref_row_y`: top of the user-mapped (first) row.
+        `ref_row_h`: height of the user-mapped row band (used as line spacing).
+        """
+        zx, zy, zw, zh = zone
+        zx2, zy2 = zx + zw, zy + zh
+        # tokens that fall within the table zone horizontally and at/below the first row
+        inside = [
+            t for t in tokens
+            if zx <= t.cx <= zx2 and zy <= t.cy <= zy2 and t.cy >= ref_row_y - ref_row_h * 0.5
+        ]
+        if not inside:
+            return [ref_row_y + ref_row_h // 2]
+
+        # Sort by Y and cluster: tokens closer than 0.6 * ref_row_h are same row
+        inside.sort(key=lambda t: t.cy)
+        threshold = max(8.0, ref_row_h * 0.6)
+        clusters: list[list[Token]] = []
+        current: list[Token] = [inside[0]]
+        for t in inside[1:]:
+            if t.cy - current[-1].cy <= threshold:
+                current.append(t)
+            else:
+                clusters.append(current)
+                current = [t]
+        clusters.append(current)
+
+        # A real row should span enough horizontal width — drop tiny clusters
+        min_span = zw * 0.15
+        row_centers: list[int] = []
+        for cl in clusters:
+            xs = [t.cx for t in cl]
+            if max(xs) - min(xs) < min_span and len(cl) < 3:
+                continue
+            cy = int(sum(t.cy for t in cl) / len(cl))
+            row_centers.append(cy)
+
+        # Deduplicate rows that ended up too close (within 0.7 * ref_row_h)
+        deduped: list[int] = []
+        min_gap = max(10, int(ref_row_h * 0.7))
+        for cy in row_centers:
+            if not deduped or cy - deduped[-1] >= min_gap:
+                deduped.append(cy)
+        return deduped or [ref_row_y + ref_row_h // 2]
