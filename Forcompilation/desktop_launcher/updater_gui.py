@@ -183,14 +183,31 @@ class UpdaterGUI:
         sel = tk.Frame(root, bg=WHITE)
         sel.pack(fill=tk.X, padx=18, pady=14)
 
+        # Branch selector row
+        branch_row = tk.Frame(sel, bg=WHITE)
+        branch_row.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 8))
+        tk.Label(branch_row, text="Branche :", bg=WHITE, fg=NAVY,
+                 font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT, padx=(0, 8))
+        self.branch_var = tk.StringVar(value=DEFAULT_BRANCH)
+        self.branch_combo = ttk.Combobox(
+            branch_row, textvariable=self.branch_var,
+            values=[DEFAULT_BRANCH], state="readonly", width=24)
+        self.branch_combo.pack(side=tk.LEFT)
+        self.branch_combo.bind("<<ComboboxSelected>>",
+                               lambda _: self._load_versions_async())
+        self.branch_hint = tk.Label(
+            branch_row, text="", bg=WHITE, fg="#888",
+            font=("Segoe UI", 9, "italic"))
+        self.branch_hint.pack(side=tk.LEFT, padx=(10, 0))
+
         tk.Label(sel, text="Choisir une version à installer :",
                  bg=WHITE, fg=NAVY, font=("Segoe UI", 11, "bold")
-                 ).grid(row=0, column=0, sticky=tk.W, pady=(0, 6))
+                 ).grid(row=1, column=0, sticky=tk.W, pady=(0, 6))
 
         self.version_var = tk.StringVar(value="Chargement des versions depuis GitHub…")
         self.combo = ttk.Combobox(sel, textvariable=self.version_var,
                                   state="readonly", width=80)
-        self.combo.grid(row=1, column=0, sticky=tk.EW, padx=(0, 8))
+        self.combo.grid(row=2, column=0, sticky=tk.EW, padx=(0, 8))
         self.combo.bind("<<ComboboxSelected>>", self._on_select_version)
 
         self.refresh_btn = tk.Button(
@@ -199,7 +216,7 @@ class UpdaterGUI:
             padx=10, pady=2, cursor="hand2",
             command=self._load_versions_async,
         )
-        self.refresh_btn.grid(row=1, column=1, sticky=tk.E)
+        self.refresh_btn.grid(row=2, column=1, sticky=tk.E)
 
         sel.columnconfigure(0, weight=1)
 
@@ -207,7 +224,7 @@ class UpdaterGUI:
         tk.Label(sel, textvariable=self.desc_var,
                  bg=WHITE, fg="#666", font=("Segoe UI", 9, "italic"),
                  wraplength=720, justify=tk.LEFT
-                 ).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(8, 0))
+                 ).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(8, 0))
 
         # ── update button ──────────────────────────────────────
         btn_row = tk.Frame(root, bg=WHITE)
@@ -276,6 +293,7 @@ class UpdaterGUI:
     # ── load versions ──────────────────────────────────────────
     def _load_versions_async(self):
         self.refresh_btn.configure(state=tk.DISABLED)
+        self.branch_combo.configure(state=tk.DISABLED)
         self.btn.configure(state=tk.DISABLED)
         self.version_var.set("Chargement des versions depuis GitHub…")
         self.desc_var.set("")
@@ -334,6 +352,7 @@ class UpdaterGUI:
             self.version_var.set("(aucune version disponible — vérifiez la connexion)")
             self.set_status("Impossible de récupérer la liste. Réessayez plus tard.")
         self.refresh_btn.configure(state=tk.NORMAL)
+        self.branch_combo.configure(state="readonly")
 
     def _on_select_version(self, _evt=None):
         idx = self.combo.current()
@@ -460,6 +479,7 @@ class UpdaterGUI:
 
     def _update_done(self, rc: int, ref: str, sha: str):
         self.combo.configure(state="readonly")
+        self.branch_combo.configure(state="readonly")
         self.refresh_btn.configure(state=tk.NORMAL)
         if rc == 0:
             self.set_status(f"Mise à jour terminée — installé : {sha[:7] or ref}.")
