@@ -67,7 +67,8 @@ class ManifestReviewDialog(QDialog):
         )
         self.resize(1400, 750)
 
-        self._midas_mode = False  # False = vue brute éditable, True = aperçu MIDAS read-only
+        self._midas_mode = False  # False = vue brute éditable, True = aperçu MIDAS éditable
+        self._midas_rows: Optional[List[Dict[str, Any]]] = None  # MIDAS rows with user edits
 
         self._build_ui()
         self._populate_table()
@@ -192,11 +193,14 @@ class ManifestReviewDialog(QDialog):
         self._refresh_status()
 
     def _populate_midas(self):
-        """Render rows in MIDAS 43-column layout (read-only preview).
+        """Render rows in MIDAS 43-column layout (editable).
 
         Empty mandatory cells are highlighted in red so the user can
-        instantly spot extraction failures (lookups missing, etc.)."""
-        midas_rows = map_rows_to_midas(self.rows)
+        instantly spot extraction failures. Edits update self._midas_rows."""
+        # (Re)compute if first time or rows changed
+        if self._midas_rows is None:
+            self._midas_rows = map_rows_to_midas(self.rows)
+        midas_rows = self._midas_rows
         cols = MIDAS_COLUMNS
         self.table.clear()
         self.table.setColumnCount(len(cols))
@@ -217,7 +221,6 @@ class ManifestReviewDialog(QDialog):
                 for c, key in enumerate(cols):
                     val = row.get(key, "")
                     item = QTableWidgetItem(str(val) if val is not None else "")
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                     if not str(val).strip():
                         if key in intentionally_empty:
                             item.setBackground(gray_brush)
@@ -239,6 +242,10 @@ class ManifestReviewDialog(QDialog):
     def _toggle_midas_view(self, checked: bool):
         self._midas_mode = checked
         self.btn_toggle_midas.setText("✏ Vue brute (édition)" if checked else "📊 Aperçu MIDAS")
+        # Reset computed MIDAS rows when leaving MIDAS mode so next entry
+        # picks up any brute-mode corrections.
+        if not checked:
+            self._midas_rows = None
         self._populate_table()
         if checked:
             self.lbl_status.setText(
@@ -265,6 +272,25 @@ class ManifestReviewDialog(QDialog):
     def _on_item_changed(self, item: QTableWidgetItem):
         r = item.row()
         c = item.column()
+        new_val = item.text()
+
+        if self._midas_mode:
+            # Edit in MIDAS view — update _midas_rows only (no CorrectionStore)
+            if self._midas_rows is None or r >= len(self._midas_rows):
+                return
+            key = MIDAS_COLUMNS[c] if c < len(MIDAS_COLUMNS) else None
+            if not key:
+                return
+            if str(self._midas_rows[r].get(key, "")) == new_val:
+                return
+            self._midas_rows[r][key] = new_val
+            # Remove red highlight once user fills a cell
+            with QSignalBlocker(self.table):
+                item.setBackground(QBrush(QColor("#FFF8C5")))
+                item.setToolTip("✏ Modifié manuellement")
+            self._refresh_status()
+            return
+
         cols = self._columns()
         if c >= len(cols):
             return
@@ -344,7 +370,7 @@ class ManifestReviewDialog(QDialog):
         )
 
     def _export_midas(self):
-        """Export at MIDAS 43-column format."""
+        """Export at MIDAS 43-column format, using edited MIDAS rows if available."""
         if not self.rows:
             QMessageBox.information(self, "Rien à exporter", "Aucune ligne disponible.")
             return
@@ -355,13 +381,43 @@ class ManifestReviewDialog(QDialog):
         if not path:
             return
         try:
-            out = ExcelExporter(output_path=Path(path)).export_midas(self.rows)
+            exp = ExcelExporter(output_path=Path(path))
+            if self._midas_rows is not None:
+                # User has edited the MIDAS view — export directly from the
+                # edited MIDAS rows (already in 43-column format).
+                from ..midas_mapper import MIDAS_COLUMNS as _COLS
+                from openpyxl import Workbook
+                from openpyxl.styles import Font, PatternFill, Alignment
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "MIDAS"
+                ws.append(_COLS)
+                header_font = Font(bold=True, color="FFFFFF", size=10)
+                header_fill = PatternFill("solid", fgColor="1A4076")
+                header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                for cell in ws[1]:
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = header_align
+                ws.row_dimensions[1].height = 32
+                for row in self._midas_rows:
+                    ws.append([row.get(h, "") for h in _COLS])
+                ws.freeze_panes = "A2"
+                ws.auto_filter.ref = ws.dimensions
+                for col_cells in ws.columns:
+                    vals = [c.value for c in col_cells if c.value is not None]
+                    length = max((len(str(v)) for v in vals), default=10)
+                    ws.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 12), 32)
+                wb.save(path)
+                out = Path(path)
+            else:
+                out = exp.export_midas(self.rows)
         except Exception as e:
             QMessageBox.critical(self, "Erreur d'export MIDAS", str(e))
             return
         QMessageBox.information(
             self, "Export MIDAS terminé",
-            f"{len(self.rows)} ligne(s) exportée(s) au format MIDAS vers :\n{out}\n\n"
+            f"{len(self._midas_rows or self.rows)} ligne(s) exportée(s) au format MIDAS vers :\n{out}\n\n"
             f"Colonnes laissées vides (saisie équipe d'intégration) :\n"
             f"  • Numéro escale, Index, Range\n"
             f"  • Code transitaire / chargeur / marchandise\n"
