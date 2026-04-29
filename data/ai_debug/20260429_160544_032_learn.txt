@@ -1,0 +1,172 @@
+=== AI DEBUG LOG — LEARN ===
+Timestamp : 2026-04-29T16:05:44
+Source    : C:\Users\m.taleb\Downloads\MSC GEMMA GT601E IMP.pdf
+
+--- PROMPT SENT (4901 chars) ---
+Tu es un expert en classification de documents maritimes.
+
+Voici le début d'un manifeste de cargaison. Identifie son FORMAT (transporteur émetteur).
+
+Réponds en JSON STRICT, sans markdown :
+{
+  "format_name": "nom court du format en MAJUSCULES (ex: MSC, CMA_CGM, MAERSK, HAPAG_LLOYD, SAKINA, COSCO)",
+  "carrier_name": "nom complet du transporteur",
+  "signature_keywords": ["mot1", "mot2", "mot3"],
+  "is_scanned": true,
+  "extraction_hints": "particularités à retenir pour l'extraction future (mise en page, étiquettes utilisées, pièges OCR)"
+}
+
+Règles pour signature_keywords :
+- 3 à 6 tokens TRÈS SPÉCIFIQUES présents dans CE document
+- IMPORTANT : chaque token doit être 1 à 3 mots MAXIMUM, sans saut de ligne
+  (les phrases longues comme "MEDITERRANEAN SHIPPING COMPANY S.A., GENEVA" ne
+  matcheront PAS car les PDF éclatent le texte sur plusieurs colonnes/lignes)
+- Doivent permettre de reconnaître ce format à l'avenir SANS confusion avec d'autres transporteurs
+- Évite les mots trop génériques : "BL", "VESSEL", "CARGO", "MANIFEST" (présents partout)
+- Privilégie :
+  * préfixe(s) de numéros BL (ex: "MEDU", "CMAU", "MAEU")
+  * code/sigle court du transporteur (ex: "MSC", "CMA CGM", "MAERSK")
+  * libellés de section spécifiques (ex: "BILL ISSUANCE", "PLACE OF RECEIPT")
+  * code interne unique (ex: numéro à 5 chiffres entre parenthèses comme "(15358)")
+- Casse-insensible — l'app fera .upper() pour comparer
+- L'app valide la présence d'au moins 60% des tokens (mode tolérant)
+
+is_scanned : true si le document est un scan (texte OCR avec fautes), false si c'est un PDF généré numériquement.
+
+
+--- DÉBUT DU MANIFESTE ---
+MEDITERRANEAN DEPARTURE DATE Page 1 of 90
+SHIPPING COMPANY 05 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: DAMIETTA
+Abidjan, , CI Liberia JEDDAH 02, ABIDJAN (not required in U.S.)
+SAUDI ARABIA
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRS. (MN) 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+SH: MEDUFF255394 CN:MSBU7058080 40' HIGH CUBE
+AL-SHARQ FLEXIBLE
+R836250900017
+PACKAGING FACTORIES SN: F119627
+65
+Tare Weight: 3,700
+New Industrial Area Al kharaj Road
+kgs.
+Riyadh
+24 PALLET(S) of METALIZED 22754.00kgs.
+11411
+Riyadh, Saudi Arabia 11411 CPP AND TRANSPARENT CPP NO. 50163.98lbs.
+Phone No : +966552374272 OF PALLETS: 24 PALLETS GROSS
+Fax No : +23296612651804 WEIGHT: 22754.00 KGS NET
+WEIGHT: 21893.74 KGS FREIGHT
+CO:
+PREPAID
+FLEXIBLE PACKAGING COTE D
+IVOIRE (FLEPACI)
+ZONE INDUSTRIELLE DE Harmonized Code: 392119
+YOPOUGON05 BP 1753 ABIDJAN
+05
+Abidjan
+Total No. of containers: 1x40' HIGH CUBE
+NF: Total on this bill of lading: 24 PALLET(S) packages 22,754.00kgs.
+FLEXIBLE PACKAGING COTE D
+IVOIRE (FLEPACI)
+ZONE INDUSTRIELLE DE
+YOPOUGON05 BP 1753 ABIDJAN
+05
+Abidjan
+Phone No : +2250707016009
+Fax No : +2252723519014
+EW:
+
+MEDITERRANEAN DEPARTURE DATE Page 2 of 90
+SHIPPING COMPANY 07 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: VALENCIA
+Abidjan, , CI Liberia KING ABDULLAH ABIDJAN (not required in U.S.)
+PORT 02, SAUDI
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRSA. (RMNA) BIA 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+SH: MEDUJ4270495 CN:CARU5744750 40' DRY VAN EXPRESS RELEASE
+SAUDI BASIC INDUSTRIES
+25-780GAC
+CORPORATION SN: 1354072
+Saudi Basic Industries Corporation Tare Weight: 3,690
+(SABIC)
+kgs.
+Airport Branch Rd Qurtubah District
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+5101
+57287.12lbs.
+Riyadh, Saudi Arabia 11422
+Phone No : +9660112259918 Harmonized Code: 390210
+Fax No : +9660112258210
+CO:
+COTIPLAST
+Total No. of containers: 1x40' DRY VAN
+ZONE INDUSTRIELLE DE
+CN:TRHU6549759 40' HIGH CUBE
+YOPOUGON
+01 BP 615 ABIDJAN 01
+SN: 1354168
+Abidjan
+Tare Weight: 3,700
+kgs.
+NF: 1020 BAG(S) of PP 506P 249 25985.00kgs.
+COTIPLAST 57287.12lbs.
+Harmonized Code: 390210
+ZONE INDUSTRIELLE DE
+YOPOUGON
+01 BP 615 ABIDJAN 01
+Abidjan
+Phone No : +2252723467135 CN:MSMU7784997 40' HIGH CUBE
+Fax No : +2252723467323
+SN: 1354171
+Tare Weight: 3,840
+kgs.
+EW: 1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:MSMU4928299 40' HIGH CUBE
+SN: 1354087
+Tare Weight: 3,840
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+--- FIN ---
+
+--- RAW RESPONSE (571 chars) ---
+{
+  "format_name": "MSC",
+  "carrier_name": "MEDITERRANEAN SHIPPING COMPANY S.A.",
+  "signature_keywords": [
+    "MEDITERRANEAN",
+    "SHIPPING COMPANY",
+    "MSC GEMMA",
+    "MEDU",
+    "BILL ISSUANCE",
+    "(15358)"
+  ],
+  "is_scanned": false,
+  "extraction_hints": "Le manifeste est paginé avec 'Page X of Y'. Les informations du navire et du voyage sont en haut. Les détails de chaque B/L sont bien structurés avec des étiquettes claires comme 'SH:', 'CO:', 'NF:', 'B/L NR.', 'CN:', 'SN:'. Les poids sont indiqués en kgs et lbs. Les codes harmonisés sont présents."
+}
+
+--- PARSED ---
+{
+  "format_name": "MSC",
+  "carrier_name": "MEDITERRANEAN SHIPPING COMPANY S.A.",
+  "signature_keywords": [
+    "MEDITERRANEAN",
+    "SHIPPING COMPANY",
+    "MSC GEMMA",
+    "MEDU",
+    "BILL ISSUANCE",
+    "(15358)"
+  ],
+  "is_scanned": false,
+  "extraction_hints": "Le manifeste est paginé avec 'Page X of Y'. Les informations du navire et du voyage sont en haut. Les détails de chaque B/L sont bien structurés avec des étiquettes claires comme 'SH:', 'CO:', 'NF:', 'B/L NR.', 'CN:', 'SN:'. Les poids sont indiqués en kgs et lbs. Les codes harmonisés sont présents."
+}

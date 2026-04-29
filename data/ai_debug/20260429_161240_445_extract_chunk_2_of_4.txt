@@ -1,0 +1,1388 @@
+=== AI DEBUG LOG — EXTRACT_CHUNK_2_OF_4 ===
+Timestamp : 2026-04-29T16:12:40
+Source    : C:\Users\m.taleb\Downloads\IMPORT KOTA SINGA KSNG0079E.pdf
+Extra     : {"input_chars": 11980, "hints_chars": 0, "chunk": 2, "total_chunks": 4}
+
+--- PROMPT SENT (15191 chars) ---
+Tu es un expert en analyse de manifestes maritimes (cargo manifests, bills of lading).
+
+Ta tâche : extraire TOUTES les lignes de cargaison du document fourni dans une structure JSON STRICTE.
+
+Règles métier IMPORTANTES :
+1. Une ligne de sortie = UN CONTENEUR (split). Si un BL contient 3 conteneurs, produis 3 objets dans "rows" avec le MÊME bl_number et les détails propres à chaque conteneur.
+2. Si la cargaison est en VRAC (bulk, pas de conteneur), produis UNE ligne par BL avec container_number vide.
+3. Les champs d'en-tête (vessel, voyage, date_of_arrival, shipowner) sont au niveau racine — ils s'appliquent implicitement à toutes les lignes.
+4. Numéros de conteneur ISO 6346 : 4 lettres MAJUSCULES + 7 chiffres (ex: MSCU1234567, EAIF1520 N'EST PAS un conteneur, c'est un BL).
+5. Poids : extrais UNIQUEMENT le nombre brut, sans espaces ni virgules (ex: « 27 439 560 KGS » → weight: "27439560", weight_unit: "KGS").
+6. Si un champ n'apparaît pas dans le document, mets "" (chaîne vide). N'INVENTE JAMAIS de données.
+7. Corrige les erreurs OCR évidentes : I↔1, O↔0, S↔5, B↔8, Z↔2 dans les codes alphanumériques (BL, conteneurs).
+8. Le shipowner est le transporteur maritime émetteur (CMA CGM, MSC, Maersk, etc.), PAS le shipper de la marchandise.
+9. Pour transit : si tu vois « EN TRANSIT POUR X » ou « FINAL DESTINATION X » à côté d'une ligne, mets X dans _transit_to.
+
+Réponds UNIQUEMENT avec du JSON valide conforme au schéma ci-dessous. Pas de markdown, pas de texte explicatif.
+
+SCHÉMA :
+{
+  "vessel": "nom du navire",
+  "voyage": "numéro de voyage / VOY",
+  "date_of_arrival": "DD/MM/YYYY",
+  "shipowner": "armateur (compagnie maritime émettrice du document)",
+  "rows": [
+    {
+      "bl_number": "numéro de connaissement (BL/HBL)",
+      "bl_type": "BL ou WAYBILL",
+      "shipper": "expéditeur (raison sociale complète)",
+      "consignee": "destinataire (raison sociale complète)",
+      "notify": "à notifier",
+      "freight_forwarder": "transitaire / forwarder",
+      "port_of_loading": "port de chargement (ville, pays)",
+      "port_of_discharge": "port de déchargement (ville, pays)",
+      "place_of_delivery": "lieu de livraison final si transit",
+      "place_of_acceptance": "lieu de prise en charge",
+      "container_number": "n° conteneur ISO (4 lettres + 7 chiffres) ou vide si vrac",
+      "container_type": "type ISO (20GP, 40HC, 40RH...) ou vide",
+      "seal1": "n° de scellé principal",
+      "weight": "poids brut, NOMBRE SEUL sans séparateurs (ex: 27439560)",
+      "weight_unit": "KGS ou MT ou TONS",
+      "pack_qty": "nombre de colis (nombre seul)",
+      "pack_unit": "type de colis (BAGS, PCS, BULK...)",
+      "volume": "volume si présent (nombre seul)",
+      "volume_unit": "M3 / CBM",
+      "description": "description complète de la marchandise",
+      "_transit_to": "pays/ville de destination finale si EN TRANSIT, sinon vide"
+    }
+  ]
+}
+
+IMPORTANT — EXTRACTION PAR LOTS : ce texte est le LOT 2/4 d'un long manifeste. Extrais UNIQUEMENT les BL présents dans ce lot. Les champs d'en-tête (vessel, voyage, date, shipowner) sont les mêmes pour tous les lots — répète-les si tu les vois ici, sinon laisse vides.
+
+--- TEXTE DU MANIFESTE ---
+SHIPPER'S LOAD STOW COUNT & SEAL
+Place of receipt
+CN-SHANGHAI
+1)Gross WGT 2) MEAS
+3)Tare WGT 4) VGM
+1) 27,570.000 KGS
+2) 65.000 CBM
+(MN) N/M
+(CN) BEAU6488923
+(CY/CY) - D5
+(SN) CX0438436
+(CN) CAIU7097846
+(CY/CY) - D5
+(SN) CP0934328/CR0934328
+(CN) FFAU7524574
+(CY/CY) - D5
+(SN) CP0927892
+(CN) PIDU4361529
+(CY/CY) - D5
+(SN) CP0930492
+/CP0927592
+(CN) TEMU7485700
+(CY/CY) - D5
+(SN) CP0927811
+15 PACKAGE
+5X40HC CONTAINER(S) SAID TO CONTAIN:
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B4RD310020
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B7RD313090
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B8RD313311
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21BXRD313312
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B2RD310050
+1) 30,650.000 KGS
+2) 227.190 CBM
+Arrival Date
+2026-03-16
+Page No.
+7
+Freight and Charges
+x+
+
+=== PAGE 9 ===
+PIL
+1.Name of ship
+FOREIGN CARGO MANIFEST
+2.Port where report is mode
+3.Nationality of ship
+4.Name of master
+5a.Port of loading
+1)SHIPPER 2)CONSIGNEE 3)NOTIFY PARTY
+B/L. NO.
+6. Marks and No. (MN)
+Container No. (CN)
+Seal No.
+(SN)
+5b.Port of discharge
+No. & Kind of Package, Description of Goods
+1)Gross WGT 2) MEAS
+3)Tare WGT 4) VGM
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B1RD310038
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B2RD313305
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B7RD310030
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21B1RD313313
+JETOUR CAR
+ENGINE NO: SQR6461T1KTBD
+VIN NO:LVTDB21BXRD313309
+JETOUR CAR
+ENGINE NO: SQR6480F26CA
+VIN NO:LVTDB21B6RD313100
+CHANGAN CAR
+ENGINE NO: SC7151ABA6
+VIN NO:LS5A3DKE6NA707856
+JETOUR CAR
+ENGINE NO: SQR6480F26CA
+VIN NO:HJRPBGJB2PB503797
+JETOUR CAR
+ENGINE NO: SQR6482F26CA
+VIN NO:HJRPBGJB6RB365653
+BEIJING HYUNDAI CAR
+ENGINE NO: BH7201MAAS
+VIN NO:LBEN2BKD9RZ034195
+*POST CODE:999063
+TEL:0769266666/0701653828
+ATTN:HU ZHEN
+VAT NO.: 2403512K
+Page No.
+8
+Freight and Charges
+
+=== PAGE 10 ===
+EPIL
+1)SHIPPER 2) CONSIGNEE 3) NOTIFY PARTY
+1.Name of ship
+KOTA SINGA KSNG0079E
+INWARD FOREIGN CARGO MANIFEST
+2.Port where report is mode
+3.Nationality of ship
+SG
+4.Name of master
+6. Marks and No.
+5a.Port of loading
+CN-NANSHA
+(MN)
+5b.Port of discharge
+CI-ABIDJAN
+B/L. NO.
+Container No.
+Seal No.
+(CN)
+No. & Kind of Package, Description of Goods
+(SN)
+SHIPMENT ON NON-NEGOTIABLE WAYBILL.
+RELEASE CARGO TO
+NAMED CONSIGNEE WITHOUT PRESENTATION
+OF OBL.
+SHIPPER'S LOAD STOW COUNT & SEAL
+1) TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE
+CO.,LTD
+ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO.
+1288 YINGBIN AVENUE, *
+2) SOCIETE KD NEGOCE
+P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL:
++225 0172709127
+3) SAME AS CONSIGNEE
+SHSW50591600
+(MN) N/M
+(CN) PCIU0068818
+(CY/CY) - D2
+(SN) CP0923053
+(CN) PCIU0097992
+(CY/CY) - D2
+(SN) CX0550714
+(CN) PCIU1227004
+(CY/CY) - D2
+(SN) CX0550720
+(CN) PCIU1482294
+(CY/CY) - D2
+5,485 PACKAGE
+7X20GP CONTAINER(S) SAID TO CONTAIN:
+DIESEL ENGINE AND WATER HOSE
+*TIANJIN PILOT FREE TRADE
+ZONE (CENTRAL BUSINESS
+DISTRICT)
+SHIPPER'S LOAD STOW COUNT & SEAL
+(SN) CX0550928
+(CN) PCIU1557773
+(CY/CY) - D2
+(SN) CP0923057
+1923057
+(CN) PCIU1870495
+(CY/CY) - D2
+(SN) CP0923054
+1533054
+(CN) PIDU2022995
+(CY/CY) - D2
+(SN) CP0923056/PC0923056
+Page No.
+9
+Place of receipt
+CN-SHANGHAI
+1)Gross WGT 2) MEAS
+3)Tare WGT 4) VGM
+Arrival Date
+2026-03-16
+Freight and Charges
+1) 192,425.000 KGS
+2) 210.000 CBM
+xx
+
+=== PAGE 11 ===
+PIL
+1)SHIPPER 2)CONSIGNEE
+3)NOTIFY PARTY
+1.Name of ship
+KOTA SINGA KSNG0079E
+INWARD FOREIGN CARGO MANIFEST
+2.Port where report is mode
+5b.Port of discharge
+CI-ABIDJAN
+Place of receipt
+CN-SHANGHAI
+No. & Kind of Package, Description of Goods
+1) Gross WGT 2) MEAS
+3)Tare WGT 4) VGM
+Arrival Date
+2026-03-16
+Page No.
+10
+Freight and Charges
+3.Nationality of ship
+SG
+4.Name of master
+6. Marks and No.
+B/L. NO.
+Container No.
+Seal No.
+5a.Port of loading
+CN-NANSHA
+(MN)
+(CN)
+(SN)
+1) EQUIPEMENTS & SERVICES BIA
+4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS
+ATTN: FABRICE LEBON*
+2) ETABLISSEMENT MULTI SERVICE SORO ZIE
+COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME
+ARRONDISSEMENT**
+3) ETABLISSEMENT MULTI SERVICE SORO ZIE
+COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME
+ARRONDISSEMENT**
+SHTP60002600
+(MN) N/M
+(CN) GAOU7497918
+(CY/CY) - D5
+(SN) CX0440111-
+(CN) PCIU0034037
+(CY/CY) - D2
+(SN) CX0550537/
+(CN) PCIU9146444
+(CY/CY) - D5
+(SN) CX0440116
+12 PACKAGE
+1X20GP,2X40HC CONTAINER(S) SAID TO
+CONTAIN:
+1 X BOMAG PNEUMATIC TYRED
+ROLLER BW27RH+
+ACCESSORIES
+SERIAL NUMBER:/ ENGINE NUMBER:
+961538221503/13317686
+ANNEE DE PRODUCTION:2025
+3 X BOMAG TANDEM VIBRATORY
+ROLLER BW161AD-4 +
+ACCESSORIES
+SERIAL NUMBER:/ ENGINE NUMBER:
+961920911505/13321283
+961920911506/13325652
+961920911507/13325640
+ANNEE DE PRODUCTION:2026
+BESC REF: CIIMP-520164
+*TEL:+230 402 6790
+**05 BP 1120 ABIDJAN 05
+FABRICE THOMAS DIAKOURE
+CHARGE DU TRANSIT
+TEL:0586759877
+MAIL
+:FABRICE.DIAKOURE@ETSSOROZIE.COM
+1) 42,081.000 KGS
+2) 
+... (7191 more chars truncated)
+
+--- RAW RESPONSE (34566 chars) ---
+{
+  "vessel": "KOTA SINGA",
+  "voyage": "KSNG0079E",
+  "date_of_arrival": "16/03/2026",
+  "shipowner": "PIL",
+  "rows": [
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU0068818",
+      "container_type": "20GP",
+      "seal1": "CP0923053",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU0097992",
+      "container_type": "20GP",
+      "seal1": "CX0550714",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1227004",
+      "container_type": "20GP",
+      "seal1": "CX0550720",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1482294",
+      "container_type": "20GP",
+      "seal1": "CX0550928",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1557773",
+      "container_type": "20GP",
+      "seal1": "CP0923057",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1870495",
+      "container_type": "20GP",
+      "seal1": "CP0923054",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PIDU2022995",
+      "container_type": "20GP",
+      "seal1": "CP0923056/PC0923056",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTP60002600",
+      "bl_type": "BL",
+      "shipper": "EQUIPEMENTS & SERVICES BIA 4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS ATTN: FABRICE LEBON TEL:+230 402 6790",
+      "consignee": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "notify": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "GAOU7497918",
+      "container_type": "D5",
+      "seal1": "CX0440111-",
+      "weight": "42081",
+      "weight_unit": "KGS",
+      "pack_qty": "12",
+      "pack_unit": "PACKAGE",
+      "volume": "112.196",
+      "volume_unit": "CBM",
+      "description": "1 X BOMAG PNEUMATIC TYRED ROLLER BW27RH+ ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961538221503/13317686 ANNEE DE PRODUCTION:2025 3 X BOMAG TANDEM VIBRATORY ROLLER BW161AD-4 + ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961920911505/13321283 961920911506/13325652 961920911507/13325640 ANNEE DE PRODUCTION:2026 BESC REF: CIIMP-520164",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTP60002600",
+      "bl_type": "BL",
+      "shipper": "EQUIPEMENTS & SERVICES BIA 4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS ATTN: FABRICE LEBON TEL:+230 402 6790",
+      "consignee": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "notify": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU0034037",
+      "container_type": "D2",
+      "seal1": "CX0550537/",
+      "weight": "42081",
+      "weight_unit": "KGS",
+      "pack_qty": "12",
+      "pack_unit": "PACKAGE",
+      "volume": "112.196",
+      "volume_unit": "CBM",
+      "description": "1 X BOMAG PNEUMATIC TYRED ROLLER BW27RH+ ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961538221503/13317686 ANNEE DE PRODUCTION:2025 3 X BOMAG TANDEM VIBRATORY ROLLER BW161AD-4 + ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961920911505/13321283 961920911506/13325652 961920911507/13325640 ANNEE DE PRODUCTION:2026 BESC REF: CIIMP-520164",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTP60002600",
+      "bl_type": "BL",
+      "shipper": "EQUIPEMENTS & SERVICES BIA 4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS ATTN: FABRICE LEBON TEL:+230 402 6790",
+      "consignee": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "notify": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU9146444",
+      "container_type": "D5",
+      "seal1": "CX0440116",
+      "weight": "42081",
+      "weight_unit": "KGS",
+      "pack_qty": "12",
+      "pack_unit": "PACKAGE",
+      "volume": "112.196",
+      "volume_unit": "CBM",
+      "description": "1 X BOMAG PNEUMATIC TYRED ROLLER BW27RH+ ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961538221503/13317686 ANNEE DE PRODUCTION:2025 3 X BOMAG TANDEM VIBRATORY ROLLER BW161AD-4 + ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961920911505/13321283 961920911506/13325652 961920911507/13325640 ANNEE DE PRODUCTION:2026 BESC REF: CIIMP-520164",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60302200",
+      "bl_type": "BL",
+      "shipper": "INTEGRITY MEDICAL GROUP ADDRESS: 5TH FLOOR, THE CORE BUILDING, NO. 62 ICT AVENUE CYBERCITY, EBENE MAURITIUS TELEPHONE:+2301566332",
+      "consignee": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "notify": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "FFAU7519860",
+      "container_type": "D5",
+      "seal1": "CX0437604",
+      "weight": "19549.500",
+      "weight_unit": "KGS",
+      "pack_qty": "1062",
+      "pack_unit": "CARTON",
+      "volume": "137.230",
+      "volume_unit": "CBM",
+      "description": "EXAMINATION COACH BABY COT MEDICAL MANUEL BED SIMPLE MEDICAL MANUEL BED DRESSING TROLLEY SYRINGE PUMP INFUTION PUMP CHAIR WHEELCHAIR IV STAND BINOCULAR MICROSCOPE CENTRIFUGE MEDIUM BABY WARMER BIRTH TABLE BEDPAN PORTABLE SUCTION MACHINE NEGATOSCOPE ACCOMPANYING CHAIR ULTRASOUND SCANNER PORTABLE MANUAL RESUSCITATION MEDICAL KIT MANUAL SUCTION MACHINE ELECTRONIC BLOOD PRESSURE MACHINE EXAMINATION LAMP DENTAL CHAIR HEIGHT CHART BABY BED WASHING BOTTLE NON-STERILE GAUZE SWABS APERTURE ZINC OXIDE PLASTER FACE MASK SHOE COVER",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60302200",
+      "bl_type": "BL",
+      "shipper": "INTEGRITY MEDICAL GROUP ADDRESS: 5TH FLOOR, THE CORE BUILDING, NO. 62 ICT AVENUE CYBERCITY, EBENE MAURITIUS TELEPHONE:+2301566332",
+      "consignee": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "notify": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PIDU4413920",
+      "container_type": "D5",
+      "seal1": "CX0550674/CX0560674",
+      "weight": "19549.500",
+      "weight_unit": "KGS",
+      "pack_qty": "1062",
+      "pack_unit": "CARTON",
+      "volume": "137.230",
+      "volume_unit": "CBM",
+      "description": "EXAMINATION COACH BABY COT MEDICAL MANUEL BED SIMPLE MEDICAL MANUEL BED DRESSING TROLLEY SYRINGE PUMP INFUTION PUMP CHAIR WHEELCHAIR IV STAND BINOCULAR MICROSCOPE CENTRIFUGE MEDIUM BABY WARMER BIRTH TABLE BEDPAN PORTABLE SUCTION MACHINE NEGATOSCOPE ACCOMPANYING CHAIR ULTRASOUND SCANNER PORTABLE MANUAL RESUSCITATION MEDICAL KIT MANUAL SUCTION MACHINE ELECTRONIC BLOOD PRESSURE MACHINE EXAMINATION LAMP DENTAL CHAIR HEIGHT CHART BABY BED WASHING BOTTLE NON-STERILE GAUZE SWABS APERTURE ZINC OXIDE PLASTER FACE MASK SHOE COVER",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60303000",
+      "bl_type": "BL",
+      "shipper": "TIANJIN SHARPOWER TECHNOLOGY CO., LTD ADD:ROOM 304, BUILDING 1, NO. 7, HAITAI HUAKE STREET, HUAYUAN INDUSTRIAL PARK, BINHAI HIGH-TECH ZONE, TIANJIN",
+      "consignee": "SOCIETE BAKARY COMMERCE SBC 01POBOX:871 BKE 01 ADRESSE:ABIDJAN, COTE D'IVOIRE PHONE:+225 07 07 78 31 14 EMAIL:CONTACT@KARTA.CI",
+      "notify": "SOCIETE BAKARY COMMERCE SBC 01POBOX:871 BKE 01 ADRESSE:ABIDJAN, COTE D'IVOIRE PHONE:+225 07 07 78 31 14 EMAIL:CONTACT@KARTA.CI",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU2891070",
+      "container_type": "D2",
+      "seal1": "CR0498467",
+      "weight": "27880",
+      "weight_unit": "KGS",
+      "pack_qty": "935",
+      "pack_unit": "PACKAGE",
+      "volume": "30.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE HAMMER",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60303100",
+      "bl_type": "BL",
+      "shipper": "YIWU SUKAI IMPORT AND EXPORT CO.,LTD",
+      "consignee": "KD NEGOCE P.O BOX: 01 BP 2229 BOUAKE 01 VILLE IVORY COAST TEL: 0172709127 E-MAIL: CONTACT@KARTA-TRANSIT.CI TAX ID:1812177J",
+      "notify": "SUNDEEP IMPEX LIMITED SUITE 1505-06,ALBION PLAZA 2-6 GRANVILLE ROAD TST KOWLOON HONGKONG TEL:+85262726264 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM TAX ID:1812177J",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU8811787",
+      "container_type": "D5",
+      "seal1": "CX0437507",
+      "weight": "19950",
+      "weight_unit": "KGS",
+      "pack_qty": "1482",
+      "pack_unit": "CARTON",
+      "volume": "68.000",
+      "volume_unit": "CBM",
+      "description": "WASHING BRUSH",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "BSIU2647204",
+      "container_type": "D2",
+      "seal1": "CX0504898/CX0504812",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "BSIU2651462",
+      "container_type": "D2",
+      "seal1": "CX0504900/Cx0501900",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU0020060",
+      "container_type": "D2",
+      "seal1": "CX0504812/CX054812",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1207137",
+      "container_type": "D2",
+      "seal1": "CX0504895",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1242375",
+      "container_type": "D2",
+      "seal1": "CX0504819/cx050481",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1934244",
+      "container_type": "D2",
+      "seal1": "CX0504811",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU2898795",
+      "container_type": "D2",
+      "seal1": "CX0504885",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "CAIU3330271",
+      "container_type": "D2",
+      "seal1": "CX0504818",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU0224973",
+      "container_type": "D2",
+      "seal1": "CX0504816",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1309381",
+      "container_type": "D2",
+      "seal1": "CX0504817",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1415470",
+      "container_type": "D2",
+      "seal1": "CX0504879",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1657176",
+      "container_type": "D2",
+      "seal1": "CX0504813.",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU1964151",
+      "container_type": "D2",
+      "seal1": "CX05048141",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50252100",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMPORT AND EXPORT CO., LTD",
+      "consignee": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "notify": "GENERAL IMPEX SARL ABIDJAN TREICHVILLE RUE 44,AV.21 CC N 2404570 F TEL: +225 07 12 77 23 73",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU9420030",
+      "container_type": "D5",
+      "seal1": "CX0503547/",
+      "weight": "156570",
+      "weight_unit": "KGS",
+      "pack_qty": "10212",
+      "pack_unit": "PACKAGE",
+      "volume": "237.000",
+      "volume_unit": "CBM",
+      "description": "GYPSUM BOARD ACCESSORIES",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50253500",
+      "bl_type": "BL",
+      "shipper": "YIWU CHANGE IMP
+... (4566 more chars truncated)
+
+--- PARSED ---
+{
+  "vessel": "KOTA SINGA",
+  "voyage": "KSNG0079E",
+  "date_of_arrival": "16/03/2026",
+  "shipowner": "PIL",
+  "rows": [
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU0068818",
+      "container_type": "20GP",
+      "seal1": "CP0923053",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU0097992",
+      "container_type": "20GP",
+      "seal1": "CX0550714",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1227004",
+      "container_type": "20GP",
+      "seal1": "CX0550720",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1482294",
+      "container_type": "20GP",
+      "seal1": "CX0550928",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1557773",
+      "container_type": "20GP",
+      "seal1": "CP0923057",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU1870495",
+      "container_type": "20GP",
+      "seal1": "CP0923054",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHSW50591600",
+      "bl_type": "WAYBILL",
+      "shipper": "TIANJIN JINXIU TIANHONG INTERNATIONAL TRADE CO.,LTD ADDRESS: 2-311 TIANQI INTERNATIONAL BUILDING, NO. 1288 YINGBIN AVENUE, TIANJIN PILOT FREE TRADE ZONE (CENTRAL BUSINESS DISTRICT)",
+      "consignee": "SOCIETE KD NEGOCE P.O BOX:01 BP 2229 BOUAKE 01 VILLE, IVORY COAST TEL: +225 0172709127",
+      "notify": "SAME AS CONSIGNEE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PIDU2022995",
+      "container_type": "20GP",
+      "seal1": "CP0923056/PC0923056",
+      "weight": "192425",
+      "weight_unit": "KGS",
+      "pack_qty": "5485",
+      "pack_unit": "PACKAGE",
+      "volume": "210.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE AND WATER HOSE",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTP60002600",
+      "bl_type": "BL",
+      "shipper": "EQUIPEMENTS & SERVICES BIA 4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS ATTN: FABRICE LEBON TEL:+230 402 6790",
+      "consignee": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "notify": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "GAOU7497918",
+      "container_type": "D5",
+      "seal1": "CX0440111-",
+      "weight": "42081",
+      "weight_unit": "KGS",
+      "pack_qty": "12",
+      "pack_unit": "PACKAGE",
+      "volume": "112.196",
+      "volume_unit": "CBM",
+      "description": "1 X BOMAG PNEUMATIC TYRED ROLLER BW27RH+ ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961538221503/13317686 ANNEE DE PRODUCTION:2025 3 X BOMAG TANDEM VIBRATORY ROLLER BW161AD-4 + ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961920911505/13321283 961920911506/13325652 961920911507/13325640 ANNEE DE PRODUCTION:2026 BESC REF: CIIMP-520164",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTP60002600",
+      "bl_type": "BL",
+      "shipper": "EQUIPEMENTS & SERVICES BIA 4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS ATTN: FABRICE LEBON TEL:+230 402 6790",
+      "consignee": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "notify": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU0034037",
+      "container_type": "D2",
+      "seal1": "CX0550537/",
+      "weight": "42081",
+      "weight_unit": "KGS",
+      "pack_qty": "12",
+      "pack_unit": "PACKAGE",
+      "volume": "112.196",
+      "volume_unit": "CBM",
+      "description": "1 X BOMAG PNEUMATIC TYRED ROLLER BW27RH+ ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961538221503/13317686 ANNEE DE PRODUCTION:2025 3 X BOMAG TANDEM VIBRATORY ROLLER BW161AD-4 + ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961920911505/13321283 961920911506/13325652 961920911507/13325640 ANNEE DE PRODUCTION:2026 BESC REF: CIIMP-520164",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTP60002600",
+      "bl_type": "BL",
+      "shipper": "EQUIPEMENTS & SERVICES BIA 4TH LEVEL, NEXTERACOM TOWER 1 EBENE MAURITIUS ATTN: FABRICE LEBON TEL:+230 402 6790",
+      "consignee": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "notify": "ETABLISSEMENT MULTI SERVICE SORO ZIE COCODY RIVIERA ATTOBAN, NON LOIN DU 30EME ARRONDISSEMENT 05 BP 1120 ABIDJAN 05 FABRICE THOMAS DIAKOURE CHARGE DU TRANSIT TEL:0586759877 MAIL :FABRICE.DIAKOURE@ETSSOROZIE.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU9146444",
+      "container_type": "D5",
+      "seal1": "CX0440116",
+      "weight": "42081",
+      "weight_unit": "KGS",
+      "pack_qty": "12",
+      "pack_unit": "PACKAGE",
+      "volume": "112.196",
+      "volume_unit": "CBM",
+      "description": "1 X BOMAG PNEUMATIC TYRED ROLLER BW27RH+ ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961538221503/13317686 ANNEE DE PRODUCTION:2025 3 X BOMAG TANDEM VIBRATORY ROLLER BW161AD-4 + ACCESSORIES SERIAL NUMBER:/ ENGINE NUMBER: 961920911505/13321283 961920911506/13325652 961920911507/13325640 ANNEE DE PRODUCTION:2026 BESC REF: CIIMP-520164",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60302200",
+      "bl_type": "BL",
+      "shipper": "INTEGRITY MEDICAL GROUP ADDRESS: 5TH FLOOR, THE CORE BUILDING, NO. 62 ICT AVENUE CYBERCITY, EBENE MAURITIUS TELEPHONE:+2301566332",
+      "consignee": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "notify": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "FFAU7519860",
+      "container_type": "D5",
+      "seal1": "CX0437604",
+      "weight": "19549.500",
+      "weight_unit": "KGS",
+      "pack_qty": "1062",
+      "pack_unit": "CARTON",
+      "volume": "137.230",
+      "volume_unit": "CBM",
+      "description": "EXAMINATION COACH BABY COT MEDICAL MANUEL BED SIMPLE MEDICAL MANUEL BED DRESSING TROLLEY SYRINGE PUMP INFUTION PUMP CHAIR WHEELCHAIR IV STAND BINOCULAR MICROSCOPE CENTRIFUGE MEDIUM BABY WARMER BIRTH TABLE BEDPAN PORTABLE SUCTION MACHINE NEGATOSCOPE ACCOMPANYING CHAIR ULTRASOUND SCANNER PORTABLE MANUAL RESUSCITATION MEDICAL KIT MANUAL SUCTION MACHINE ELECTRONIC BLOOD PRESSURE MACHINE EXAMINATION LAMP DENTAL CHAIR HEIGHT CHART BABY BED WASHING BOTTLE NON-STERILE GAUZE SWABS APERTURE ZINC OXIDE PLASTER FACE MASK SHOE COVER",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60302200",
+      "bl_type": "BL",
+      "shipper": "INTEGRITY MEDICAL GROUP ADDRESS: 5TH FLOOR, THE CORE BUILDING, NO. 62 ICT AVENUE CYBERCITY, EBENE MAURITIUS TELEPHONE:+2301566332",
+      "consignee": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "notify": "TRIAD CO MARCORY, AVENUE DE LA COTE D'IVOIRE ABIDJAN COTE D'IVOIRE TEL:00225 0789999699 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PIDU4413920",
+      "container_type": "D5",
+      "seal1": "CX0550674/CX0560674",
+      "weight": "19549.500",
+      "weight_unit": "KGS",
+      "pack_qty": "1062",
+      "pack_unit": "CARTON",
+      "volume": "137.230",
+      "volume_unit": "CBM",
+      "description": "EXAMINATION COACH BABY COT MEDICAL MANUEL BED SIMPLE MEDICAL MANUEL BED DRESSING TROLLEY SYRINGE PUMP INFUTION PUMP CHAIR WHEELCHAIR IV STAND BINOCULAR MICROSCOPE CENTRIFUGE MEDIUM BABY WARMER BIRTH TABLE BEDPAN PORTABLE SUCTION MACHINE NEGATOSCOPE ACCOMPANYING CHAIR ULTRASOUND SCANNER PORTABLE MANUAL RESUSCITATION MEDICAL KIT MANUAL SUCTION MACHINE ELECTRONIC BLOOD PRESSURE MACHINE EXAMINATION LAMP DENTAL CHAIR HEIGHT CHART BABY BED WASHING BOTTLE NON-STERILE GAUZE SWABS APERTURE ZINC OXIDE PLASTER FACE MASK SHOE COVER",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60303000",
+      "bl_type": "BL",
+      "shipper": "TIANJIN SHARPOWER TECHNOLOGY CO., LTD ADD:ROOM 304, BUILDING 1, NO. 7, HAITAI HUAKE STREET, HUAYUAN INDUSTRIAL PARK, BINHAI HIGH-TECH ZONE, TIANJIN",
+      "consignee": "SOCIETE BAKARY COMMERCE SBC 01POBOX:871 BKE 01 ADRESSE:ABIDJAN, COTE D'IVOIRE PHONE:+225 07 07 78 31 14 EMAIL:CONTACT@KARTA.CI",
+      "notify": "SOCIETE BAKARY COMMERCE SBC 01POBOX:871 BKE 01 ADRESSE:ABIDJAN, COTE D'IVOIRE PHONE:+225 07 07 78 31 14 EMAIL:CONTACT@KARTA.CI",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU2891070",
+      "container_type": "D2",
+      "seal1": "CR0498467",
+      "weight": "27880",
+      "weight_unit": "KGS",
+      "pack_qty": "935",
+      "pack_unit": "PACKAGE",
+      "volume": "30.000",
+      "volume_unit": "CBM",
+      "description": "DIESEL ENGINE HAMMER",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "SHTS60303100",
+      "bl_type": "BL",
+      "shipper": "YIWU SUKAI IMPORT AND EXPORT CO.,LTD",
+      "consignee": "KD NEGOCE P.O BOX: 01 BP 2229 BOUAKE 01 VILLE IVORY COAST TEL: 0172709127 E-MAIL: CONTACT@KARTA-TRANSIT.CI TAX ID:1812177J",
+      "notify": "SUNDEEP IMPEX LIMITED SUITE 1505-06,ALBION PLAZA 2-6 GRANVILLE ROAD TST KOWLOON HONGKONG TEL:+85262726264 POST CODE:75326 EMAIL BOX: HDAAMOUSH@TRIADCI.COM TAX ID:1812177J",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-NANSHA",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-SHANGHAI",
+      "container_number": "PCIU8811787",
+      "container_type": "D5",
+      "seal1": "CX0437507",
+      "weight": "19950",
+      "weight_unit": "KGS",
+      "pack_qty": "1482",
+      "pack_unit": "CARTON",
+      "volume": "68.000",
+      "volume_unit": "CBM",
+      "description": "WASHING BRUSH",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "BSIU2647204",
+      "container_type": "D2",
+      "seal1": "CX0504898/CX0504812",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "BSIU2651462",
+      "container_type": "D2",
+      "seal1": "CX0504900/Cx0501900",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_forwarder": "",
+      "port_of_loading": "CN-QINGDAO",
+      "port_of_discharge": "CI-ABIDJAN",
+      "place_of_delivery": "",
+      "place_of_acceptance": "CN-LIANYUNGANG",
+      "container_number": "PCIU0020060",
+      "container_type": "D2",
+      "seal1": "CX0504812/CX054812",
+      "weight": "182778",
+      "weight_unit": "KGS",
+      "pack_qty": "111",
+      "pack_unit": "PACKAGE",
+      "volume": "33.600",
+      "volume_unit": "CBM",
+      "description": "PRIME ELECTROLYTIC TINPLATE IN SHEETS AND PRIME TIN FREE STEEL IN SHEETS FREIGHT PREPAID BSC NUMBER: CIIMP-524690",
+      "_transit_to": ""
+    },
+    {
+      "bl_number": "LYBN50246600",
+      "bl_type": "BL",
+      "shipper": "EUSIDER TINPLATE SRL VIA PER ROGENO/FRAZ. BRENNO DELLA TORRE",
+      "consignee": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "notify": "EVIOSYS PACKAGING SIEM RUE DU CANAL ZONE 3, BOULEVARD VALERY GISCARD D'ESTAING 01, ABIDJAN, ABIDJAN | COTE D'IVOIRE",
+      "freight_fo

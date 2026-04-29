@@ -58,5 +58,11 @@ data/corrections/
 # User templates (created in-app at runtime, not source code)
 data/templates/*.json
 
+# AI configuration (contains API key — NEVER commit)
+data/ai_config.json
+
+# AI-learned formats (per-installation, may contain sensitive carrier hints)
+data/learned_formats/
+
 # Test / diagnostic artefacts (not part of the deployable app)
 testing_pdf/

@@ -9,5 +9,8 @@ PyYAML>=6.0.1
 rapidfuzz>=3.5.0
 pdfplumber>=0.11.0
 
+# AI extraction (Google Gemini — universal manifest parsing & format learning)
+google-genai>=1.0.0
+
 # Build/packaging only (not needed at runtime by end users):
 pyinstaller>=6.5.0

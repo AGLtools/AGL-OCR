@@ -23,6 +23,8 @@ from ..corrections import CorrectionStore
 from ..exporter import ExcelExporter
 from ..config import EXPORTS_DIR
 from ..midas_mapper import MIDAS_COLUMNS, map_rows_to_midas
+from ..ai import validate_rows, has_api_key
+from .ai_dialogs import AIFixWorker, ensure_api_key
 
 
 # Read-only metadata columns (never editable)
@@ -131,6 +133,24 @@ class ManifestReviewDialog(QDialog):
         )
         self.btn_toggle_midas.toggled.connect(self._toggle_midas_view)
         btns.addWidget(self.btn_toggle_midas)
+
+        # AI quality checks
+        self.btn_validate_ai = QPushButton("🔍 Vérifier la qualité")
+        self.btn_validate_ai.setToolTip(
+            "Détecte les lignes incomplètes ou suspectes (n° BL/conteneur invalide,\n"
+            "poids non numérique, champs obligatoires manquants)."
+        )
+        self.btn_validate_ai.clicked.connect(self._run_quality_check)
+        btns.addWidget(self.btn_validate_ai)
+
+        self.btn_ai_fix = QPushButton("✨ Corriger les lignes problématiques avec l'IA")
+        self.btn_ai_fix.setStyleSheet("background: #e7d4ff; color: #4a148c;")
+        self.btn_ai_fix.setToolTip(
+            "Envoie chaque ligne problématique à Gemini avec le contexte du document\n"
+            "pour correction automatique. Nécessite une clé API."
+        )
+        self.btn_ai_fix.clicked.connect(self._ai_fix_problems)
+        btns.addWidget(self.btn_ai_fix)
 
         btns.addStretch(1)
 
@@ -311,6 +331,121 @@ class ManifestReviewDialog(QDialog):
                 if it:
                     it.setBackground(QBrush(QColor("#FFF8C5")))
         self._refresh_status()
+
+    # ------------------------------------------------------------------
+    # Quality validation + AI auto-fix
+    # ------------------------------------------------------------------
+    def _run_quality_check(self):
+        """Highlight rows with detected issues. Updates row tooltip + status bar."""
+        if self._midas_mode:
+            self.btn_toggle_midas.setChecked(False)  # switch back to raw view
+        issues = validate_rows(self.rows)
+        # Reset all backgrounds in raw view
+        if not self._midas_mode:
+            self._populate_table()
+        # Apply red tint + tooltip on problematic rows
+        red = QBrush(QColor("#FFD6D6"))
+        for ridx, iss in issues.items():
+            if ridx >= self.table.rowCount():
+                continue
+            tip = " · ".join(iss)
+            for c in range(self.table.columnCount()):
+                it = self.table.item(ridx, c)
+                if it:
+                    if not self.rows[ridx].get("_user_edited"):
+                        it.setBackground(red)
+                    it.setToolTip(tip)
+        self.lbl_status.setText(
+            f"{len(self.rows)} lignes · {len(issues)} avec problèmes détectés"
+            + (" · cliquez « Corriger avec IA »" if issues else " ✓")
+        )
+        if not issues:
+            QMessageBox.information(self, "Qualité OK", "Aucun problème détecté.")
+
+    def _ai_fix_problems(self):
+        """Send each problematic row to Gemini for correction."""
+        if not ensure_api_key(self):
+            return
+        issues_map = validate_rows(self.rows)
+        if not issues_map:
+            QMessageBox.information(self, "Rien à corriger",
+                                    "Aucun problème détecté. Lancez d'abord « Vérifier la qualité ».")
+            return
+        if QMessageBox.question(
+            self, "Correction IA",
+            f"<b>{len(issues_map)} ligne(s)</b> seront envoyées à Gemini pour correction.<br><br>"
+            "Cela peut prendre quelques secondes par ligne. Continuer ?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
+        ) != QMessageBox.Yes:
+            return
+
+        # Build a context string from the source PDF (text-only, best effort)
+        context = self._build_doc_context()
+
+        # Process sequentially via a small queue of workers
+        self._fix_queue = list(issues_map.items())
+        self._fix_total = len(self._fix_queue)
+        self._fix_done = 0
+        self._fix_context = context
+        self.btn_ai_fix.setEnabled(False)
+        self.lbl_status.setText(f"Correction IA en cours… 0 / {self._fix_total}")
+        self._launch_next_fix()
+
+    def _launch_next_fix(self):
+        if not self._fix_queue:
+            self.btn_ai_fix.setEnabled(True)
+            self.lbl_status.setText(
+                f"Correction IA terminée — {self._fix_done} / {self._fix_total} ligne(s) traitée(s)."
+            )
+            self._populate_table()
+            return
+        ridx, iss = self._fix_queue.pop(0)
+        self._cur_fix_worker = AIFixWorker(ridx, dict(self.rows[ridx]), iss, self._fix_context)
+        self._cur_fix_worker.finished_ok.connect(self._on_fix_done)
+        self._cur_fix_worker.failed.connect(self._on_fix_failed)
+        self._cur_fix_worker.start()
+
+    def _on_fix_done(self, ridx: int, fixed: dict):
+        # Apply only changed values, mark row as edited, persist
+        original = self.rows[ridx]
+        changed = False
+        for k, v in fixed.items():
+            if k in ("source_file", "page", "_user_edited"):
+                continue
+            if str(v).strip() and str(original.get(k, "")).strip() != str(v).strip():
+                original[k] = str(v).strip()
+                changed = True
+        if changed:
+            original["_user_edited"] = True
+            self.store.save_manifest_rows(self.rows)
+        self._fix_done += 1
+        self.lbl_status.setText(
+            f"Correction IA en cours… {self._fix_done} / {self._fix_total}"
+        )
+        self._launch_next_fix()
+
+    def _on_fix_failed(self, ridx: int, err: str):
+        self._fix_done += 1
+        # Keep going — don't abort the whole batch on a single failure
+        self._launch_next_fix()
+
+    def _build_doc_context(self) -> str:
+        """Best-effort: extract embedded text from the source PDF (max ~16k chars)."""
+        try:
+            import pdfplumber
+            chunks = []
+            total = 0
+            with pdfplumber.open(str(self.source_path)) as pdf:
+                for p in pdf.pages:
+                    t = p.extract_text() or ""
+                    if t:
+                        chunks.append(t)
+                        total += len(t)
+                        if total > 16000:
+                            break
+            return "\n\n".join(chunks)[:16000]
+        except Exception:
+            return ""
 
     def _reset_selected_row(self):
         rows = sorted({i.row() for i in self.table.selectedIndexes()})
