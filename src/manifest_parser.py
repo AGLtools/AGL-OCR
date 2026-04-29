@@ -543,4 +543,26 @@ class ManifestParser:
             return "maersk"
         if "MSC" in text and "CARGO MANIFEST" in text:
             return "msc"
+        # 3) Detect SAKINA-style scanned manifests (text might be sparse/absent)
+        if "SAKINA" in text or ("DSM LIVERPOOL" in text and "QUESTIONNAIRE" in text):
+            return "sakina"
         return None
+
+    @staticmethod
+    def _is_scanned_format(fmt: Optional[str]) -> bool:
+        """Formats that require OCR (scanned PDFs, not pdfplumber)."""
+        return fmt in ("sakina",)
+
+    def parse_scanned(self, pdf_path: str | Path) -> list[dict]:
+        """Route a scanned PDF to the correct extractor based on format detection."""
+        from .extractors.sakina_extractor import SakinaExtractor
+        pdf_path = Path(pdf_path)
+        # Try to detect format; if pdfplumber sees nothing, check filename heuristics
+        fmt = self.detect_format(pdf_path)
+        if fmt is None:
+            # pdfplumber returned no text — assume SAKINA-style scanned doc
+            fmt = "sakina"
+        if fmt == "sakina":
+            return SakinaExtractor().extract(pdf_path)
+        # Future: add other scanned formats here
+        return []

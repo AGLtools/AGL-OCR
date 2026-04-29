@@ -140,6 +140,27 @@ class ManifestParseWorker(QThread):
             self.failed.emit(str(e))
 
 
+# -------------------- background OCR extraction worker --------------------
+class ScannedExtractWorker(QThread):
+    finished_ok = pyqtSignal(list, str)   # rows, source_path
+    failed = pyqtSignal(str)
+
+    def __init__(self, file_path: str, fmt: str):
+        super().__init__()
+        self.file_path = file_path
+        self.fmt = fmt
+
+    def run(self):
+        try:
+            from ..manifest_parser import ManifestParser
+            parser = ManifestParser()
+            rows = parser.parse_scanned(self.file_path)
+            self.finished_ok.emit(rows, self.file_path)
+        except Exception as e:
+            import traceback
+            self.failed.emit(traceback.format_exc())
+
+
 # -------------------- background OCR worker --------------------
 class OCRWorker(QThread):
     finished_ok = pyqtSignal(list, str)   # pages, source_path
@@ -995,6 +1016,23 @@ class MainWindow(QMainWindow):
 
         # Auto-detect format
         fmt = ManifestParser.detect_format(self.source_path)
+
+        # ── Scanned document (SAKINA, etc.) ─────────────────────────
+        if fmt == "sakina" or (fmt is None and not self._has_embedded_text()):
+            reply = QMessageBox.question(
+                self, "Document scanné détecté",
+                f"Ce document semble être un <b>scan</b> (texte non intégré).<br><br>"
+                f"Lancer l'extraction OCR automatique "
+                f"<b>({fmt.upper() if fmt else 'SAKINA / format inconnu'})</b> ?<br><br>"
+                f"<i>⏱ Durée estimée : 15–60 s selon le nombre de pages.</i>",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if reply != QMessageBox.Yes:
+                return
+            self._run_scanned_extraction(fmt or "sakina")
+            return
+
         if fmt is None:
             # Ask user
             fmt, ok = QInputDialog.getItem(
@@ -1063,6 +1101,27 @@ class MainWindow(QMainWindow):
         QApplication.restoreOverrideCursor()
         self.statusBar().showMessage("Échec de l'analyse.")
         QMessageBox.critical(self, "Erreur d'analyse", msg)
+
+    # ── Scanned document helpers ─────────────────────────────────────────────
+    def _has_embedded_text(self) -> bool:
+        """Quick check: does pdfplumber find any words on page 1?"""
+        try:
+            import pdfplumber
+            with pdfplumber.open(str(self.source_path)) as pdf:
+                words = pdf.pages[0].extract_words(x_tolerance=6)
+                return len(words) >= 5
+        except Exception:
+            return False
+
+    def _run_scanned_extraction(self, fmt: str):
+        self.statusBar().showMessage(f"OCR + extraction ({fmt.upper()})…  ⏳")
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self._scanned_worker = ScannedExtractWorker(str(self.source_path), fmt)
+        self._scanned_worker.finished_ok.connect(self._on_parse_done)
+        self._scanned_worker.failed.connect(self._on_parse_failed)
+        self._scanned_worker.start()
+
+
 
     def _export_excel(self):        
         if not self.extracted_rows:
