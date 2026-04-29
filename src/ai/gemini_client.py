@@ -14,6 +14,7 @@ Public API (unchanged from callers' perspective):
 from __future__ import annotations
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -132,27 +133,29 @@ def set_ocr_engine(value: str) -> None:
 # ── New SDK client (google.genai) ───────────────────────────────────────
 _client = None
 _client_key: Optional[str] = None
+_client_lock = threading.Lock()
 
 
 def _get_client():
-    """Return a configured google.genai.Client, creating it once per key."""
+    """Return a configured google.genai.Client, creating it once per key (thread-safe)."""
     global _client, _client_key
     key = get_api_key()
     if not key:
         raise GeminiNotConfigured(
             "Clé API Gemini non configurée.\nMenu IA → Configurer la clé API."
         )
-    if _client_key != key:
-        try:
-            from google import genai  # type: ignore
-        except ImportError as e:
-            raise GeminiNotConfigured(
-                "Le package 'google-genai' n'est pas installé.\n\n"
-                "Installez-le avec :\n  pip install google-genai"
-            ) from e
-        _client = genai.Client(api_key=key)
-        _client_key = key
-    return _client
+    with _client_lock:
+        if _client_key != key:
+            try:
+                from google import genai  # type: ignore
+            except ImportError as e:
+                raise GeminiNotConfigured(
+                    "Le package 'google-genai' n'est pas installé.\n\n"
+                    "Installez-le avec :\n  pip install google-genai"
+                ) from e
+            _client = genai.Client(api_key=key)
+            _client_key = key
+        return _client
 
 
 # ── Core generation helper ─────────────────────────────────────────────

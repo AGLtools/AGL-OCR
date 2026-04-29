@@ -15,6 +15,8 @@ midas_mapper / review dialog work without changes.
 from __future__ import annotations
 import json
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -234,34 +236,71 @@ def extract_rows_from_pdf(
 
     # Decide if we need to chunk
     chunks = _build_chunks(pages, max_chars=18000)
+    n = len(chunks)
     if progress_cb:
         progress_cb(
-            f"Structuration via Gemini ({len(chunks)} chunk(s))…"
+            f"Structuration via Gemini ({n} chunk(s))…"
             + (" (texte issu de Vision OCR)" if source_kind == "vision" else "")
         )
+    _check_cancel(cancel_check)
 
     all_rows: List[Dict] = []
     header: Dict = {}
-    for i, chunk_text in enumerate(chunks, 1):
-        _check_cancel(cancel_check)
-        if progress_cb:
-            progress_cb(f"Gemini chunk {i}/{len(chunks)}…")
+
+    if n == 1:
+        # ── Single chunk: no parallelism overhead ─────────────────
         rows, hdr = _extract_one_chunk(
-            chunk_text,
+            chunks[0],
             source_file=str(pdf_path),
             extra_hints=extra_hints,
             example_rows=example_rows,
-            chunk_index=i,
-            total_chunks=len(chunks),
+            chunk_index=1,
+            total_chunks=1,
         )
-        if not header and hdr:
-            header = hdr
-        # Re-apply consistent header to all rows
+        header = hdr or {}
         for r in rows:
             for k, v in header.items():
                 if not r.get(k):
                     r[k] = v
             all_rows.append(r)
+    else:
+        # ── Multiple chunks: fire all requests in parallel ─────────
+        chunk_results: Dict[int, tuple] = {}
+        done_lock = threading.Lock()
+        done_count = [0]
+
+        with ThreadPoolExecutor(max_workers=min(n, 5)) as pool:
+            future_to_idx = {
+                pool.submit(
+                    _extract_one_chunk,
+                    ct,
+                    source_file=str(pdf_path),
+                    extra_hints=extra_hints,
+                    example_rows=example_rows,
+                    chunk_index=i,
+                    total_chunks=n,
+                ): i
+                for i, ct in enumerate(chunks, 1)
+            }
+            for fut in as_completed(future_to_idx):
+                _check_cancel(cancel_check)
+                with done_lock:
+                    done_count[0] += 1
+                    done = done_count[0]
+                if progress_cb:
+                    progress_cb(f"Gemini {done}/{n} chunks terminés…")
+                chunk_results[future_to_idx[fut]] = fut.result()
+
+        for i in sorted(chunk_results):
+            rows, hdr = chunk_results[i]
+            if not header and hdr:
+                header = hdr
+            for r in rows:
+                for k, v in header.items():
+                    if not r.get(k):
+                        r[k] = v
+                all_rows.append(r)
+
     return all_rows
 
 
@@ -368,51 +407,63 @@ def learn_format_from_pdf(pdf_path: str | Path, *, cancel_check=None) -> Dict:
         # Scanned — OCR first 2 pages only via Vision (keep cost low)
         text = vision_client.ocr_pdf(pdf_path, max_pages=2, cancel_check=cancel_check)
 
-    # ── Step 1: classify the format ──────────────────────────────────
-    classify_prompt = _LEARN_INSTRUCTIONS + "\n\n--- DÉBUT DU MANIFESTE ---\n" + text[:10000] + "\n--- FIN ---"
-    raw_cls = ""
-    cls_parsed: Dict = {}
-    err = ""
-    try:
-        resp = generate_with_fallback(
-            classify_prompt,
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.0,
-            },
-        )
-        raw_cls = getattr(resp, "text", "") or ""
-        cls_parsed = _parse_json(raw_cls) or {}
-    except Exception as e:
-        err = str(e)
-        debug_log.log_call(
-            kind="learn", source_file=str(pdf_path),
-            prompt=classify_prompt, raw_response=raw_cls,
-            parsed=cls_parsed, error=err,
-        )
-        raise
-    debug_log.log_call(
-        kind="learn", source_file=str(pdf_path),
-        prompt=classify_prompt, raw_response=raw_cls, parsed=cls_parsed,
+    # ── Steps 1, 2 & 3 run in PARALLEL ────────────────────────────
+    # Step 1: classify format  |  Step 2: extract example rows  |  Step 3: regex template
+    _check_cancel(cancel_check)
+
+    classify_prompt = (
+        _LEARN_INSTRUCTIONS
+        + "\n\n--- DÉBUT DU MANIFESTE ---\n" + text[:10000] + "\n--- FIN ---"
     )
 
-    # ── Step 2: extract an example to keep as few-shot reference ─────
-    example_rows: List[Dict] = []
-    try:
-        example_rows = extract_rows_from_text(
-            text, source_file=str(pdf_path), extra_hints="",
-        )
-    except Exception:
-        # Don't fail learning if the sample extraction fails — classification alone
-        # is still useful (signature + hints can be saved by the user).
-        example_rows = []
+    def _task_classify() -> Dict:
+        raw_cls = ""
+        cls_parsed: Dict = {}
+        err = ""
+        try:
+            resp = generate_with_fallback(
+                classify_prompt,
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "temperature": 0.0,
+                },
+            )
+            raw_cls = getattr(resp, "text", "") or ""
+            cls_parsed = _parse_json(raw_cls) or {}
+        except Exception as e:
+            err = str(e)
+            raise
+        finally:
+            debug_log.log_call(
+                kind="learn", source_file=str(pdf_path),
+                prompt=classify_prompt, raw_response=raw_cls,
+                parsed=cls_parsed, error=err,
+            )
+        return cls_parsed
+
+    def _task_example() -> List[Dict]:
+        try:
+            return extract_rows_from_text(text, source_file=str(pdf_path), extra_hints="")
+        except Exception:
+            return []
+
+    def _task_template() -> Dict:
+        return _learn_parse_template(text, source_file=str(pdf_path))
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_classify = pool.submit(_task_classify)
+        f_example  = pool.submit(_task_example)
+        f_template = pool.submit(_task_template)
+
+        # Wait for classify first (raises on error → whole learn fails cleanly)
+        cls_parsed   = f_classify.result()
+        _check_cancel(cancel_check)
+        example_rows = f_example.result()
+        _check_cancel(cancel_check)
+        parse_template = f_template.result()
 
     cls_parsed["example_rows"] = example_rows
-    cls_parsed["sample_text"] = text[:4000]
-
-    # ── Step 3: ask AI to produce a regex-based PARSE TEMPLATE for local re-use ─
-    _check_cancel(cancel_check)
-    parse_template = _learn_parse_template(text, source_file=str(pdf_path))
+    cls_parsed["sample_text"]  = text[:4000]
     if parse_template:
         cls_parsed["parse_template"] = parse_template
     return cls_parsed

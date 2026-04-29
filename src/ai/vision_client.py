@@ -17,8 +17,11 @@ after the first 1000 free pages/month. With a $300 GCP credit a user gets
 """
 from __future__ import annotations
 import base64
+import io
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional, Callable
 from urllib import request as urlrequest, error as urlerror
@@ -141,18 +144,33 @@ def ocr_pdf(
         images = images[:max_pages]
 
     total = len(images)
-    parts: List[str] = []
-    import io
-    for i, img in enumerate(images):
-        if cancel_check is not None and cancel_check():
-            from .ai_extractor import AICancelled
-            raise AICancelled("OCR annulé par l'utilisateur")
-        if progress_cb:
-            progress_cb(i + 1, total)
+    results: List[Optional[str]] = [None] * total
+    done_lock = threading.Lock()
+    done_count = [0]
+
+    def _ocr_one(idx: int, img) -> tuple[int, str]:
         buf = io.BytesIO()
         img.save(buf, format="PNG", optimize=True)
-        text = ocr_image_bytes(buf.getvalue(), language_hints=language_hints)
-        parts.append(f"\n\n=== PAGE {i + 1} ===\n{text}")
+        return idx, ocr_image_bytes(buf.getvalue(), language_hints=language_hints)
+
+    with ThreadPoolExecutor(max_workers=min(total, 8)) as pool:
+        future_to_idx = {
+            pool.submit(_ocr_one, i, img): i
+            for i, img in enumerate(images)
+        }
+        for fut in as_completed(future_to_idx):
+            if cancel_check is not None and cancel_check():
+                from .ai_extractor import AICancelled
+                raise AICancelled("OCR annulé par l'utilisateur")
+            idx, text = fut.result()
+            results[idx] = text
+            with done_lock:
+                done_count[0] += 1
+                done = done_count[0]
+            if progress_cb:
+                progress_cb(done, total)
+
+    parts = [f"\n\n=== PAGE {i + 1} ===\n{results[i]}" for i in range(total)]
     return "".join(parts).strip()
 
 
