@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import (
 from ..corrections import CorrectionStore
 from ..exporter import ExcelExporter
 from ..config import EXPORTS_DIR
+from ..midas_mapper import MIDAS_COLUMNS, map_rows_to_midas
 
 
 # Read-only metadata columns (never editable)
@@ -65,6 +66,8 @@ class ManifestReviewDialog(QDialog):
             f"Revue du manifeste — {len(self.rows)} conteneurs ({source_path.name})"
         )
         self.resize(1400, 750)
+
+        self._midas_mode = False  # False = vue brute éditable, True = aperçu MIDAS read-only
 
         self._build_ui()
         self._populate_table()
@@ -119,12 +122,27 @@ class ManifestReviewDialog(QDialog):
         self.btn_reset_row.clicked.connect(self._reset_selected_row)
         btns.addWidget(self.btn_reset_row)
 
+        self.btn_toggle_midas = QPushButton("📊 Aperçu MIDAS")
+        self.btn_toggle_midas.setCheckable(True)
+        self.btn_toggle_midas.setToolTip(
+            "Bascule entre la vue brute (éditable) et l'aperçu MIDAS 43 colonnes (lecture seule).\n"
+            "L'aperçu MIDAS montre exactement ce qui sera exporté."
+        )
+        self.btn_toggle_midas.toggled.connect(self._toggle_midas_view)
+        btns.addWidget(self.btn_toggle_midas)
+
         btns.addStretch(1)
 
-        self.btn_export = QPushButton("⬇ Exporter vers Excel")
-        self.btn_export.setStyleSheet("font-weight: bold; background: #d4edda;")
+        self.btn_export = QPushButton("⬇ Export brut")
+        self.btn_export.setToolTip("Exporte les colonnes brutes (debug / inspection)")
         self.btn_export.clicked.connect(self._export_excel)
         btns.addWidget(self.btn_export)
+
+        self.btn_export_midas = QPushButton("📊 Export MIDAS")
+        self.btn_export_midas.setStyleSheet("font-weight: bold; background: #d4edda;")
+        self.btn_export_midas.setToolTip("Exporte au format MIDAS 43 colonnes pour saisie d'intégration")
+        self.btn_export_midas.clicked.connect(self._export_midas)
+        btns.addWidget(self.btn_export_midas)
 
         self.btn_close = QPushButton("Fermer")
         self.btn_close.clicked.connect(self.accept)
@@ -142,6 +160,9 @@ class ManifestReviewDialog(QDialog):
         return cols
 
     def _populate_table(self):
+        if self._midas_mode:
+            self._populate_midas()
+            return
         cols = self._columns()
         self.table.clear()
         self.table.setColumnCount(len(cols))
@@ -169,6 +190,61 @@ class ManifestReviewDialog(QDialog):
                 self.table.setColumnWidth(c, 280)
 
         self._refresh_status()
+
+    def _populate_midas(self):
+        """Render rows in MIDAS 43-column layout (read-only preview).
+
+        Empty mandatory cells are highlighted in red so the user can
+        instantly spot extraction failures (lookups missing, etc.)."""
+        midas_rows = map_rows_to_midas(self.rows)
+        cols = MIDAS_COLUMNS
+        self.table.clear()
+        self.table.setColumnCount(len(cols))
+        self.table.setHorizontalHeaderLabels(cols)
+        self.table.setRowCount(len(midas_rows))
+
+        # Colonnes laissées volontairement vides (saisie équipe d'intégration)
+        intentionally_empty = {
+            "Numéro escale", "Index", "Range",
+            "Code transitaire", "chargeur.code", "Code marchandise",
+            "Manutentionaire", "Port transbo1", "Port transbo2",
+        }
+        red_brush = QBrush(QColor("#FFD6D6"))
+        gray_brush = QBrush(QColor("#EEEEEE"))
+
+        with QSignalBlocker(self.table):
+            for r, row in enumerate(midas_rows):
+                for c, key in enumerate(cols):
+                    val = row.get(key, "")
+                    item = QTableWidgetItem(str(val) if val is not None else "")
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    if not str(val).strip():
+                        if key in intentionally_empty:
+                            item.setBackground(gray_brush)
+                            item.setToolTip("Saisie équipe d'intégration")
+                        else:
+                            item.setBackground(red_brush)
+                            item.setToolTip("⚠ Champ vide — extraction à vérifier")
+                    self.table.setItem(r, c, item)
+
+        hdr = self.table.horizontalHeader()
+        hdr.setSectionResizeMode(QHeaderView.Interactive)
+        for c in range(len(cols)):
+            self.table.resizeColumnToContents(c)
+            if self.table.columnWidth(c) > 240:
+                self.table.setColumnWidth(c, 240)
+
+        self._refresh_status()
+
+    def _toggle_midas_view(self, checked: bool):
+        self._midas_mode = checked
+        self.btn_toggle_midas.setText("✏ Vue brute (édition)" if checked else "📊 Aperçu MIDAS")
+        self._populate_table()
+        if checked:
+            self.lbl_status.setText(
+                f"Aperçu MIDAS — {len(self.rows)} lignes × {len(MIDAS_COLUMNS)} colonnes "
+                f"· 🟥 vide à corriger · ⬜ saisie équipe"
+            )
 
     def _refresh_status(self):
         edited = sum(1 for r in self.rows if r.get("_user_edited"))
@@ -265,4 +341,29 @@ class ManifestReviewDialog(QDialog):
         QMessageBox.information(
             self, "Export terminé",
             f"{len(clean)} lignes exportées vers :\n{out}"
+        )
+
+    def _export_midas(self):
+        """Export at MIDAS 43-column format."""
+        if not self.rows:
+            QMessageBox.information(self, "Rien à exporter", "Aucune ligne disponible.")
+            return
+        default = str(EXPORTS_DIR / f"MIDAS_{self.source_path.stem}.xlsx")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter au format MIDAS", default, "Fichiers Excel (*.xlsx)"
+        )
+        if not path:
+            return
+        try:
+            out = ExcelExporter(output_path=Path(path)).export_midas(self.rows)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur d'export MIDAS", str(e))
+            return
+        QMessageBox.information(
+            self, "Export MIDAS terminé",
+            f"{len(self.rows)} ligne(s) exportée(s) au format MIDAS vers :\n{out}\n\n"
+            f"Colonnes laissées vides (saisie équipe d'intégration) :\n"
+            f"  • Numéro escale, Index, Range\n"
+            f"  • Code transitaire / chargeur / marchandise\n"
+            f"  • Manutentionaire",
         )

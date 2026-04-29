@@ -4,10 +4,17 @@
 # Préfixe du numéro BL → code armateur (4 lettres = code SCAC)
 bl_prefix_to_carrier:
   hlcu: { code: "HLCU", name: "HAPAG LLOYD" }
+  hlxu: { code: "HLCU", name: "HAPAG LLOYD" }
   maeu: { code: "MAEU", name: "MAERSK" }
+  mskl: { code: "MAEU", name: "MAERSK" }
+  sudu: { code: "SUDU", name: "HAMBURG SUD" }
+  safm: { code: "SAFM", name: "SAFMARINE" }
   mscu: { code: "MSCU", name: "MSC" }
+  medu: { code: "MSCU", name: "MSC" }
   cma:  { code: "CMAU", name: "CMA CGM" }
   cmau: { code: "CMAU", name: "CMA CGM" }
+  apll: { code: "APLU", name: "APL" }
+  aplu: { code: "APLU", name: "APL" }
   cosu: { code: "COSU", name: "COSCO" }
   oolu: { code: "OOLU", name: "OOCL" }
   ymlu: { code: "YMLU", name: "YANG MING" }
@@ -15,6 +22,11 @@ bl_prefix_to_carrier:
   egls: { code: "EGLS", name: "EVERGREEN" }
   one:  { code: "ONEY", name: "ONE" }
   oney: { code: "ONEY", name: "ONE" }
+  zimu: { code: "ZIMU", name: "ZIM" }
+  pcil: { code: "PCIL", name: "PIL" }
+  pabv: { code: "PABV", name: "PIL" }
+  whlc: { code: "WHLC", name: "WAN HAI" }
+  hdmu: { code: "HDMU", name: "HMM" }
 
 # Type conteneur (depuis manifeste) → CODE_CONDIT MIDAS + nb TEU
 # Format SCAC ISO 6346 : XXY où XX=taille, Y=type (G=general, R=reefer, T=tank, U=open top, V=ventilated, P=platform)
@@ -38,33 +50,127 @@ container_type_to_midas:
   "45hc": { code_condit: "45H", teu: 2 }
 
 # Port → pays (code ISO 3 + nom français)
+# NOTE : inclut aussi les villes de livraison intérieure (Bobo Dioulasso, Niamey, etc.)
 port_to_country:
+  # ─── Côte d'Ivoire ──────────────────────────────────────────────
   "abidjan":         { code: "CIABJ", country_code: "CI", country: "COTE D'IVOIRE", city: "Abidjan" }
-  "abu dhabi":       { code: "AEAUH", country_code: "AE", country: "EMIRATES ARABE", city: "Abu Dhabi" }
-  "tanger med":      { code: "MATNG", country_code: "MA", country: "MAROC", city: "Tanger Med" }
-  "tangier":         { code: "MATNG", country_code: "MA", country: "MAROC", city: "Tanger Med" }
+  "san pedro":       { code: "CISPY", country_code: "CI", country: "COTE D'IVOIRE", city: "San Pedro" }
+  "yamoussoukro":    { code: "CIASK", country_code: "CI", country: "COTE D'IVOIRE", city: "Yamoussoukro" }
+  "bouake":          { code: "CIBYK", country_code: "CI", country: "COTE D'IVOIRE", city: "Bouaké" }
+  # ─── Burkina Faso ───────────────────────────────────────────────
+  "ouagadougou":     { code: "BFOUA", country_code: "BF", country: "BURKINA FASO", city: "Ouagadougou" }
+  "bobo dioulasso":  { code: "BFBOY", country_code: "BF", country: "BURKINA FASO", city: "Bobo Dioulasso" }
+  "bobo":            { code: "BFBOY", country_code: "BF", country: "BURKINA FASO", city: "Bobo Dioulasso" }
+  # ─── Mali ───────────────────────────────────────────────────────
+  "bamako":          { code: "MLBKO", country_code: "ML", country: "MALI", city: "Bamako" }
+  "kayes":           { code: "MLKYS", country_code: "ML", country: "MALI", city: "Kayes" }
+  # ─── Niger ──────────────────────────────────────────────────────
+  "niamey":          { code: "NENIM", country_code: "NE", country: "NIGER", city: "Niamey" }
+  # ─── Sénégal ────────────────────────────────────────────────────
   "dakar":           { code: "SNDKR", country_code: "SN", country: "SENEGAL", city: "Dakar" }
-  "lome":            { code: "TGLFW", country_code: "TG", country: "TOGO", city: "Lome" }
+  # ─── Togo / Bénin / Ghana / Nigeria ─────────────────────────────
+  "lome":            { code: "TGLFW", country_code: "TG", country: "TOGO", city: "Lomé" }
+  "lomé":            { code: "TGLFW", country_code: "TG", country: "TOGO", city: "Lomé" }
   "cotonou":         { code: "BJCOO", country_code: "BJ", country: "BENIN", city: "Cotonou" }
   "lagos":           { code: "NGLOS", country_code: "NG", country: "NIGERIA", city: "Lagos" }
+  "apapa":           { code: "NGAPP", country_code: "NG", country: "NIGERIA", city: "Apapa" }
   "tema":            { code: "GHTEM", country_code: "GH", country: "GHANA", city: "Tema" }
+  "tincan":          { code: "NGTIN", country_code: "NG", country: "NIGERIA", city: "Tin Can" }
+  "tin can":         { code: "NGTIN", country_code: "NG", country: "NIGERIA", city: "Tin Can" }
+  # ─── Cameroun / Gabon / Congo / RDC / Angola ────────────────────
   "douala":          { code: "CMDLA", country_code: "CM", country: "CAMEROUN", city: "Douala" }
+  "kribi":           { code: "CMKBI", country_code: "CM", country: "CAMEROUN", city: "Kribi" }
+  "libreville":      { code: "GALBV", country_code: "GA", country: "GABON", city: "Libreville" }
+  "owendo":          { code: "GAOWE", country_code: "GA", country: "GABON", city: "Owendo" }
+  "port gentil":     { code: "GAPOG", country_code: "GA", country: "GABON", city: "Port Gentil" }
+  "pointe noire":    { code: "CGPNR", country_code: "CG", country: "CONGO", city: "Pointe Noire" }
+  "pointe-noire":    { code: "CGPNR", country_code: "CG", country: "CONGO", city: "Pointe Noire" }
+  "matadi":          { code: "CDMAT", country_code: "CD", country: "RDC", city: "Matadi" }
+  "boma":            { code: "CDBOA", country_code: "CD", country: "RDC", city: "Boma" }
+  "luanda":          { code: "AOLAD", country_code: "AO", country: "ANGOLA", city: "Luanda" }
+  "lobito":          { code: "AOLOB", country_code: "AO", country: "ANGOLA", city: "Lobito" }
+  # ─── Maghreb ────────────────────────────────────────────────────
+  "tanger med":      { code: "MATNG", country_code: "MA", country: "MAROC", city: "Tanger Med" }
+  "tangier":         { code: "MATNG", country_code: "MA", country: "MAROC", city: "Tanger Med" }
+  "casablanca":      { code: "MACAS", country_code: "MA", country: "MAROC", city: "Casablanca" }
+  "agadir":          { code: "MAAGA", country_code: "MA", country: "MAROC", city: "Agadir" }
+  "alger":           { code: "DZALG", country_code: "DZ", country: "ALGERIE", city: "Alger" }
+  "tunis":           { code: "TNTUN", country_code: "TN", country: "TUNISIE", city: "Tunis" }
+  # ─── Afrique de l'Est / Sud ─────────────────────────────────────
+  "mombasa":         { code: "KEMBA", country_code: "KE", country: "KENYA", city: "Mombasa" }
+  "dar es salaam":   { code: "TZDAR", country_code: "TZ", country: "TANZANIE", city: "Dar es Salaam" }
+  "djibouti":        { code: "DJJIB", country_code: "DJ", country: "DJIBOUTI", city: "Djibouti" }
+  "durban":          { code: "ZADUR", country_code: "ZA", country: "AFRIQUE DU SUD", city: "Durban" }
+  "cape town":       { code: "ZACPT", country_code: "ZA", country: "AFRIQUE DU SUD", city: "Cape Town" }
+  # ─── Europe ─────────────────────────────────────────────────────
   "le havre":        { code: "FRLEH", country_code: "FR", country: "FRANCE", city: "Le Havre" }
   "marseille":       { code: "FRMRS", country_code: "FR", country: "FRANCE", city: "Marseille" }
+  "fos":             { code: "FRFOS", country_code: "FR", country: "FRANCE", city: "Fos sur Mer" }
   "rotterdam":       { code: "NLRTM", country_code: "NL", country: "PAYS-BAS", city: "Rotterdam" }
   "antwerp":         { code: "BEANR", country_code: "BE", country: "BELGIQUE", city: "Anvers" }
+  "antwerpen":       { code: "BEANR", country_code: "BE", country: "BELGIQUE", city: "Anvers" }
+  "anvers":          { code: "BEANR", country_code: "BE", country: "BELGIQUE", city: "Anvers" }
+  "zeebrugge":       { code: "BEZEE", country_code: "BE", country: "BELGIQUE", city: "Zeebrugge" }
   "hamburg":         { code: "DEHAM", country_code: "DE", country: "ALLEMAGNE", city: "Hambourg" }
-  "shanghai":        { code: "CNSHA", country_code: "CN", country: "CHINE", city: "Shanghai" }
-  "ningbo":          { code: "CNNGB", country_code: "CN", country: "CHINE", city: "Ningbo" }
-  "singapore":       { code: "SGSIN", country_code: "SG", country: "SINGAPOUR", city: "Singapore" }
-  "port klang":      { code: "MYPKG", country_code: "MY", country: "MALAISIE", city: "Port Klang" }
-  "jebel ali":       { code: "AEJEA", country_code: "AE", country: "EMIRATES ARABE", city: "Jebel Ali" }
-  "mundra":          { code: "INMUN", country_code: "IN", country: "INDE", city: "Mundra" }
-  "nhava sheva":     { code: "INNSA", country_code: "IN", country: "INDE", city: "Nhava Sheva" }
+  "hambourg":        { code: "DEHAM", country_code: "DE", country: "ALLEMAGNE", city: "Hambourg" }
+  "bremerhaven":     { code: "DEBRV", country_code: "DE", country: "ALLEMAGNE", city: "Bremerhaven" }
+  "valencia":        { code: "ESVLC", country_code: "ES", country: "ESPAGNE", city: "Valencia" }
+  "barcelona":       { code: "ESBCN", country_code: "ES", country: "ESPAGNE", city: "Barcelone" }
+  "algeciras":       { code: "ESALG", country_code: "ES", country: "ESPAGNE", city: "Algeciras" }
+  "genoa":           { code: "ITGOA", country_code: "IT", country: "ITALIE", city: "Gênes" }
+  "gioia tauro":     { code: "ITGIT", country_code: "IT", country: "ITALIE", city: "Gioia Tauro" }
+  "piraeus":         { code: "GRPIR", country_code: "GR", country: "GRECE", city: "Le Pirée" }
+  "felixstowe":      { code: "GBFXT", country_code: "GB", country: "ROYAUME-UNI", city: "Felixstowe" }
+  "southampton":     { code: "GBSOU", country_code: "GB", country: "ROYAUME-UNI", city: "Southampton" }
+  "gdansk":          { code: "PLGDN", country_code: "PL", country: "POLOGNE", city: "Gdansk" }
   "st. petersburg":  { code: "RULED", country_code: "RU", country: "RUSSIE", city: "St. Petersburg" }
   "saint petersburg": { code: "RULED", country_code: "RU", country: "RUSSIE", city: "St. Petersburg" }
-  "ouagadougou":     { code: "BFOUA", country_code: "BF", country: "BURKINA FASO", city: "Ouagadougou" }
-  "bamako":          { code: "MLBKO", country_code: "ML", country: "MALI", city: "Bamako" }
+  # ─── Asie ───────────────────────────────────────────────────────
+  "shanghai":        { code: "CNSHA", country_code: "CN", country: "CHINE", city: "Shanghai" }
+  "ningbo":          { code: "CNNGB", country_code: "CN", country: "CHINE", city: "Ningbo" }
+  "shekou":          { code: "CNSHK", country_code: "CN", country: "CHINE", city: "Shekou" }
+  "yantian":         { code: "CNYTN", country_code: "CN", country: "CHINE", city: "Yantian" }
+  "xiamen":          { code: "CNXMN", country_code: "CN", country: "CHINE", city: "Xiamen" }
+  "qingdao":         { code: "CNTAO", country_code: "CN", country: "CHINE", city: "Qingdao" }
+  "tianjin":         { code: "CNTSN", country_code: "CN", country: "CHINE", city: "Tianjin" }
+  "hong kong":       { code: "HKHKG", country_code: "HK", country: "HONG KONG", city: "Hong Kong" }
+  "singapore":       { code: "SGSIN", country_code: "SG", country: "SINGAPOUR", city: "Singapore" }
+  "port klang":      { code: "MYPKG", country_code: "MY", country: "MALAISIE", city: "Port Klang" }
+  "tanjung pelepas": { code: "MYTPP", country_code: "MY", country: "MALAISIE", city: "Tanjung Pelepas" }
+  "busan":           { code: "KRPUS", country_code: "KR", country: "COREE DU SUD", city: "Busan" }
+  "tokyo":           { code: "JPTYO", country_code: "JP", country: "JAPON", city: "Tokyo" }
+  "yokohama":        { code: "JPYOK", country_code: "JP", country: "JAPON", city: "Yokohama" }
+  "kobe":            { code: "JPUKB", country_code: "JP", country: "JAPON", city: "Kobé" }
+  "ho chi minh":     { code: "VNSGN", country_code: "VN", country: "VIETNAM", city: "Hô-Chi-Minh-Ville" }
+  "haiphong":        { code: "VNHPH", country_code: "VN", country: "VIETNAM", city: "Haiphong" }
+  "laem chabang":    { code: "THLCH", country_code: "TH", country: "THAILANDE", city: "Laem Chabang" }
+  "bangkok":         { code: "THBKK", country_code: "TH", country: "THAILANDE", city: "Bangkok" }
+  "jakarta":         { code: "IDJKT", country_code: "ID", country: "INDONESIE", city: "Jakarta" }
+  # ─── Inde / Moyen-Orient ────────────────────────────────────────
+  "mundra":          { code: "INMUN", country_code: "IN", country: "INDE", city: "Mundra" }
+  "nhava sheva":     { code: "INNSA", country_code: "IN", country: "INDE", city: "Nhava Sheva" }
+  "mumbai":          { code: "INBOM", country_code: "IN", country: "INDE", city: "Mumbai" }
+  "chennai":         { code: "INMAA", country_code: "IN", country: "INDE", city: "Chennai" }
+  "cochin":          { code: "INCOK", country_code: "IN", country: "INDE", city: "Cochin" }
+  "colombo":         { code: "LKCMB", country_code: "LK", country: "SRI LANKA", city: "Colombo" }
+  "karachi":         { code: "PKKHI", country_code: "PK", country: "PAKISTAN", city: "Karachi" }
+  "abu dhabi":       { code: "AEAUH", country_code: "AE", country: "EMIRATES ARABE", city: "Abu Dhabi" }
+  "dubai":           { code: "AEDXB", country_code: "AE", country: "EMIRATES ARABE", city: "Dubaï" }
+  "jebel ali":       { code: "AEJEA", country_code: "AE", country: "EMIRATES ARABE", city: "Jebel Ali" }
+  "khor fakkan":     { code: "AEKLF", country_code: "AE", country: "EMIRATES ARABE", city: "Khor Fakkan" }
+  "sharjah":         { code: "AESHJ", country_code: "AE", country: "EMIRATES ARABE", city: "Sharjah" }
+  "dammam":          { code: "SADMM", country_code: "SA", country: "ARABIE SAOUDITE", city: "Dammam" }
+  "jeddah":          { code: "SAJED", country_code: "SA", country: "ARABIE SAOUDITE", city: "Djeddah" }
+  "salalah":         { code: "OMSLL", country_code: "OM", country: "OMAN", city: "Salalah" }
+  "sohar":           { code: "OMSOH", country_code: "OM", country: "OMAN", city: "Sohar" }
+  "doha":            { code: "QADOH", country_code: "QA", country: "QATAR", city: "Doha" }
+  "hamad":           { code: "QAHMD", country_code: "QA", country: "QATAR", city: "Hamad" }
+  # ─── Amériques ──────────────────────────────────────────────────
+  "santos":          { code: "BRSSZ", country_code: "BR", country: "BRESIL", city: "Santos" }
+  "buenos aires":    { code: "ARBUE", country_code: "AR", country: "ARGENTINE", city: "Buenos Aires" }
+  "new york":        { code: "USNYC", country_code: "US", country: "ETATS-UNIS", city: "New York" }
+  "houston":         { code: "USHOU", country_code: "US", country: "ETATS-UNIS", city: "Houston" }
+  "los angeles":     { code: "USLAX", country_code: "US", country: "ETATS-UNIS", city: "Los Angeles" }
 
 # Mode d'expédition (FCL = Full Container Load, LCL = Less than Container Load)
 movement_to_mode:
