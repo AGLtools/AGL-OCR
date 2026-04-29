@@ -289,11 +289,18 @@ class MainWindow(QMainWindow):
         self.btn_parse_manifest.clicked.connect(self._parse_manifest)
         self.btn_export = QPushButton("⬇ Exporter la file vers Excel")
         self.btn_export.clicked.connect(self._export_excel)
+        self.btn_export_midas = QPushButton("📊 Exporter au format MIDAS (43 colonnes)")
+        self.btn_export_midas.setToolTip(
+            "Exporte la file au format MIDAS prêt pour saisie : 42 colonnes plates\n"
+            "(Numéro escale et Index laissés vides — équipe d'intégration)."
+        )
+        self.btn_export_midas.clicked.connect(self._export_midas)
         self.queue_label = QLabel("File : 0 lignes")
         alay.addWidget(self.btn_validate)
         alay.addWidget(self.btn_process_all)
         alay.addWidget(self.btn_parse_manifest)
         alay.addWidget(self.btn_export)
+        alay.addWidget(self.btn_export_midas)
         alay.addWidget(self.queue_label)
         rlay.addWidget(action_group, 1)
 
@@ -1075,3 +1082,43 @@ class MainWindow(QMainWindow):
                                 f"{len(self.extracted_rows)} ligne(s) exportée(s) vers :\n{out}")
         self.extracted_rows.clear()
         self.queue_label.setText("File : 0 lignes")
+
+    def _export_midas(self):
+        """Export queued rows in the MIDAS 42-column flat format."""
+        if not self.extracted_rows:
+            QMessageBox.information(self, "Rien à exporter",
+                                    "Analysez et validez au moins un manifeste d'abord.")
+            return
+        # Only manifest-style rows (with 'bl_number' or 'vessel') are MIDAS-compatible
+        manifest_rows = [r for r in self.extracted_rows
+                         if "bl_number" in r or "vessel" in r]
+        if not manifest_rows:
+            QMessageBox.warning(
+                self, "Format incompatible",
+                "L'export MIDAS attend des lignes issues de l'analyse intelligente "
+                "du manifeste (bouton « 🔍 Analyse intelligente »).\n\n"
+                "Les lignes issues d'un modèle template ne contiennent pas tous les "
+                "champs requis (Navire, Numéro BL, Conteneur…).",
+            )
+            return
+        default_name = f"MIDAS_{Path(self.source_path).stem if self.source_path else 'export'}.xlsx"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter au format MIDAS",
+            str(EXPORTS_DIR / default_name),
+            "Fichiers Excel (*.xlsx)",
+        )
+        if not path:
+            return
+        try:
+            exporter = ExcelExporter(output_path=Path(path))
+            out = exporter.export_midas(manifest_rows)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur d'export MIDAS", str(e))
+            return
+        QMessageBox.information(
+            self, "Export MIDAS terminé",
+            f"{len(manifest_rows)} ligne(s) exportée(s) au format MIDAS vers :\n{out}\n\n"
+            f"Colonnes laissées vides (à remplir par l'équipe d'intégration) :\n"
+            f"  • Numéro escale\n  • Index\n  • Range\n  • Code transitaire / chargeur / marchandise\n"
+            f"  • Manutentionaire",
+        )

@@ -1,0 +1,102 @@
+# MIDAS lookups — extensible. Add entries here without touching code.
+# All keys are case-insensitive (matched in lowercase).
+
+# Préfixe du numéro BL → code armateur (4 lettres = code SCAC)
+bl_prefix_to_carrier:
+  hlcu: { code: "HLCU", name: "HAPAG LLOYD" }
+  maeu: { code: "MAEU", name: "MAERSK" }
+  mscu: { code: "MSCU", name: "MSC" }
+  cma:  { code: "CMAU", name: "CMA CGM" }
+  cmau: { code: "CMAU", name: "CMA CGM" }
+  cosu: { code: "COSU", name: "COSCO" }
+  oolu: { code: "OOLU", name: "OOCL" }
+  ymlu: { code: "YMLU", name: "YANG MING" }
+  evrg: { code: "EVRG", name: "EVERGREEN" }
+  egls: { code: "EGLS", name: "EVERGREEN" }
+  one:  { code: "ONEY", name: "ONE" }
+  oney: { code: "ONEY", name: "ONE" }
+
+# Type conteneur (depuis manifeste) → CODE_CONDIT MIDAS + nb TEU
+# Format SCAC ISO 6346 : XXY où XX=taille, Y=type (G=general, R=reefer, T=tank, U=open top, V=ventilated, P=platform)
+container_type_to_midas:
+  "40hc": { code_condit: "40H", teu: 2 }
+  "40hq": { code_condit: "40H", teu: 2 }
+  "40dr": { code_condit: "40S", teu: 2 }
+  "40gp": { code_condit: "40S", teu: 2 }
+  "40rh": { code_condit: "40R", teu: 2 }
+  "40rf": { code_condit: "40R", teu: 2 }
+  "40ot": { code_condit: "40U", teu: 2 }
+  "40fr": { code_condit: "40P", teu: 2 }
+  "40tk": { code_condit: "40T", teu: 2 }
+  "20gp": { code_condit: "20S", teu: 1 }
+  "20dr": { code_condit: "20S", teu: 1 }
+  "20rf": { code_condit: "20R", teu: 1 }
+  "20rh": { code_condit: "20R", teu: 1 }
+  "20ot": { code_condit: "20U", teu: 1 }
+  "20fr": { code_condit: "20P", teu: 1 }
+  "20tk": { code_condit: "20T", teu: 1 }
+  "45hc": { code_condit: "45H", teu: 2 }
+
+# Port → pays (code ISO 3 + nom français)
+port_to_country:
+  "abidjan":         { code: "CIABJ", country_code: "CI", country: "COTE D'IVOIRE", city: "Abidjan" }
+  "abu dhabi":       { code: "AEAUH", country_code: "AE", country: "EMIRATES ARABE", city: "Abu Dhabi" }
+  "tanger med":      { code: "MATNG", country_code: "MA", country: "MAROC", city: "Tanger Med" }
+  "tangier":         { code: "MATNG", country_code: "MA", country: "MAROC", city: "Tanger Med" }
+  "dakar":           { code: "SNDKR", country_code: "SN", country: "SENEGAL", city: "Dakar" }
+  "lome":            { code: "TGLFW", country_code: "TG", country: "TOGO", city: "Lome" }
+  "cotonou":         { code: "BJCOO", country_code: "BJ", country: "BENIN", city: "Cotonou" }
+  "lagos":           { code: "NGLOS", country_code: "NG", country: "NIGERIA", city: "Lagos" }
+  "tema":            { code: "GHTEM", country_code: "GH", country: "GHANA", city: "Tema" }
+  "douala":          { code: "CMDLA", country_code: "CM", country: "CAMEROUN", city: "Douala" }
+  "le havre":        { code: "FRLEH", country_code: "FR", country: "FRANCE", city: "Le Havre" }
+  "marseille":       { code: "FRMRS", country_code: "FR", country: "FRANCE", city: "Marseille" }
+  "rotterdam":       { code: "NLRTM", country_code: "NL", country: "PAYS-BAS", city: "Rotterdam" }
+  "antwerp":         { code: "BEANR", country_code: "BE", country: "BELGIQUE", city: "Anvers" }
+  "hamburg":         { code: "DEHAM", country_code: "DE", country: "ALLEMAGNE", city: "Hambourg" }
+  "shanghai":        { code: "CNSHA", country_code: "CN", country: "CHINE", city: "Shanghai" }
+  "ningbo":          { code: "CNNGB", country_code: "CN", country: "CHINE", city: "Ningbo" }
+  "singapore":       { code: "SGSIN", country_code: "SG", country: "SINGAPOUR", city: "Singapore" }
+  "port klang":      { code: "MYPKG", country_code: "MY", country: "MALAISIE", city: "Port Klang" }
+  "jebel ali":       { code: "AEJEA", country_code: "AE", country: "EMIRATES ARABE", city: "Jebel Ali" }
+  "mundra":          { code: "INMUN", country_code: "IN", country: "INDE", city: "Mundra" }
+  "nhava sheva":     { code: "INNSA", country_code: "IN", country: "INDE", city: "Nhava Sheva" }
+  "st. petersburg":  { code: "RULED", country_code: "RU", country: "RUSSIE", city: "St. Petersburg" }
+  "saint petersburg": { code: "RULED", country_code: "RU", country: "RUSSIE", city: "St. Petersburg" }
+  "ouagadougou":     { code: "BFOUA", country_code: "BF", country: "BURKINA FASO", city: "Ouagadougou" }
+  "bamako":          { code: "MLBKO", country_code: "ML", country: "MALI", city: "Bamako" }
+
+# Mode d'expédition (FCL = Full Container Load, LCL = Less than Container Load)
+movement_to_mode:
+  "fcl/fcl": "FCLFCL"
+  "fcl-fcl": "FCLFCL"
+  "fcl":     "FCLFCL"
+  "lcl/lcl": "LCLLCL"
+  "lcl-lcl": "LCLLCL"
+  "lcl":     "LCLLCL"
+  "fcl/lcl": "FCLLCL"
+  "lcl/fcl": "LCLFCL"
+
+# Mois en français
+months_fr:
+  - "Janvier"
+  - "Février"
+  - "Mars"
+  - "Avril"
+  - "Mai"
+  - "Juin"
+  - "Juillet"
+  - "Août"
+  - "Septembre"
+  - "Octobre"
+  - "Novembre"
+  - "Décembre"
+
+# Valeurs statiques par défaut
+defaults:
+  systeme: "MIDAS"
+  qualifie: "Oui"
+  i_imp_e_exp: "I"        # Import par défaut (à override si export détecté)
+  code_mode_expedition: "FCLFCL"
+  port_escale: "ABIDJAN"  # Port AGL principal
+  consignataire: "OMA CI" # Code consignataire AGL par défaut

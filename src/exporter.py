@@ -5,8 +5,10 @@ from datetime import datetime
 from typing import List, Dict
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 
 from .config import EXPORTS_DIR, load_fields
+from .midas_mapper import MIDAS_COLUMNS, map_rows_to_midas
 
 
 class ExcelExporter:
@@ -64,6 +66,54 @@ class ExcelExporter:
             length = max((len(str(c.value)) for c in col_cells if c.value is not None),
                          default=10)
             ws.column_dimensions[col_cells[0].column_letter].width = min(length + 2, 50)
+
+        wb.save(self.output_path)
+        return self.output_path
+
+    # ============================================================
+    # MIDAS export — 42 colonnes plates au format AGL
+    # ============================================================
+    def export_midas(self, manifest_rows: List[Dict],
+                     static_overrides: Dict | None = None) -> Path:
+        """Export rows directly in the MIDAS 42-column format.
+
+        manifest_rows: list of ManifestRow.to_dict() — the rich extraction output.
+        static_overrides: dict of {midas_column: forced_value} for site-specific
+                          constants (e.g. {"Consignataire": "OMA CI"}).
+        """
+        if not manifest_rows:
+            raise ValueError("Aucune ligne à exporter.")
+
+        midas_rows = map_rows_to_midas(manifest_rows, static_overrides)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "MIDAS"
+        ws.append(MIDAS_COLUMNS)
+
+        # Header style
+        header_font = Font(bold=True, color="FFFFFF", size=10)
+        header_fill = PatternFill("solid", fgColor="1A4076")
+        header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+        ws.row_dimensions[1].height = 32
+
+        # Data rows
+        for row in midas_rows:
+            ws.append([row.get(h, "") for h in MIDAS_COLUMNS])
+
+        # Freeze header + auto-filter
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+
+        # Column widths
+        for col_cells in ws.columns:
+            values = [c.value for c in col_cells if c.value is not None]
+            length = max((len(str(v)) for v in values), default=10)
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 12), 32)
 
         wb.save(self.output_path)
         return self.output_path

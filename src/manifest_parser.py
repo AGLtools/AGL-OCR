@@ -495,6 +495,14 @@ class ManifestParser:
             # End of last page — flush whatever is open
             _flush_split()
 
+        # Inject parser-level metadata into each row for downstream mapping
+        # (e.g. MIDAS mapper uses _shipowner as fallback when BL prefix is unknown)
+        shipowner = self.cfg.get("shipowner", "") if isinstance(self.cfg, dict) else ""
+        if shipowner:
+            for r in rows:
+                if isinstance(r, dict):
+                    r.setdefault("_shipowner", shipowner)
+
         return rows
 
     # ── Detect which parser to use from PDF content ──────────────────────────
