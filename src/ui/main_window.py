@@ -1838,7 +1838,55 @@ class MainWindow(QMainWindow):
         QApplication.restoreOverrideCursor()
         self.act_cancel.setEnabled(False)
         self.statusBar().showMessage("Échec de l'analyse IA.")
+        # Self-heal: detect the "google-genai not installed" case and offer a
+        # one-click install. Needed to recover users whose updater is too old
+        # to refresh requirements properly (the updater itself is a shipped .exe).
+        if "google-genai" in msg or "google.genai" in msg or "No module named 'google'" in msg:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Warning)
+            box.setWindowTitle("Dépendance manquante")
+            box.setText(
+                "Le package <b>google-genai</b> requis pour l'apprentissage IA "
+                "n'est pas installé dans cet environnement.<br><br>"
+                "Voulez-vous l'installer maintenant ? (~30 s, connexion internet requise)"
+            )
+            box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            box.setDefaultButton(QMessageBox.Yes)
+            if box.exec_() == QMessageBox.Yes:
+                self._install_google_genai()
+            return
         QMessageBox.critical(self, "Erreur IA", msg)
+
+    def _install_google_genai(self):
+        """One-shot pip install of google-genai using the current Python."""
+        import sys, subprocess
+        self.statusBar().showMessage("Installation de google-genai en cours…")
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--upgrade",
+                 "--disable-pip-version-check", "google-genai"],
+                capture_output=True, text=True, timeout=180,
+            )
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Installation échouée", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        if proc.returncode == 0:
+            QMessageBox.information(
+                self, "Installation réussie",
+                "google-genai a été installé.<br><br>"
+                "<b>Veuillez redémarrer l'application</b> pour que la nouvelle "
+                "bibliothèque soit chargée."
+            )
+            self.statusBar().showMessage("google-genai installé — redémarrez l'application.")
+        else:
+            QMessageBox.critical(
+                self, "Installation échouée",
+                f"pip a quitté avec le code {proc.returncode}.<br><br>"
+                f"<pre>{(proc.stderr or proc.stdout)[-2000:]}</pre>"
+            )
 
     def _ai_show_last_log(self):
         """Open the most recent AI debug log (text + prompt + Gemini reply)."""

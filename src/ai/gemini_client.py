@@ -166,7 +166,17 @@ def _call_model(model_name: str, prompt: str, generation_config: dict, image_byt
     model can also SEE the page layout (critical for learning column-based
     formats where pdfplumber merges columns onto one line).
     """
-    from google.genai import types  # type: ignore
+    try:
+        from google.genai import types  # type: ignore
+    except ImportError as e:
+        raise GeminiNotConfigured(
+            "Le package 'google-genai' n'est pas installe.\n\n"
+            "Cette fonctionnalite (apprentissage IA / extraction Gemini) "
+            "necessite la bibliotheque Google Gemini.\n\n"
+            "Solution : lancez 'AGL OCR Updater' pour installer les nouvelles "
+            "dependances, ou executez manuellement :\n"
+            "  pip install google-genai"
+        ) from e
     client = _get_client()
 
     mime = generation_config.get("response_mime_type", "text/plain")

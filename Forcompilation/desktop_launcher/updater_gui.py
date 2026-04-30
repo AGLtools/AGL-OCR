@@ -458,7 +458,11 @@ class UpdaterGUI:
         cmd = [str(venv_py), "-m", "pip", "install", "--upgrade",
                "--disable-pip-version-check", "-r", str(req)]
         if wheelhouse.exists():
-            cmd += ["--no-index", "--find-links", str(wheelhouse)]
+            # Prefer wheelhouse for speed, but allow PyPI fallback for any
+            # NEW dependency added after the wheelhouse was built (e.g.
+            # google-genai). Without this, --no-index would silently skip
+            # missing packages and the app would crash at runtime.
+            cmd += ["--find-links", str(wheelhouse)]
         try:
             proc = subprocess.Popen(
                 cmd, cwd=str(self.app_dir),
