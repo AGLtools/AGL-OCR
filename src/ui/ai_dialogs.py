@@ -59,6 +59,54 @@ class AIExtractWorker(QThread):
             self.failed.emit(f"{e}\n\n{traceback.format_exc()}")
 
 
+class ScannedTemplateWorker(QThread):
+    """OCR a scanned PDF then run a learned template's `parse(text)` on the OCR text.
+
+    Used when the user picks a learned format with `is_scanned=True`. Keeps
+    the UI responsive during the (often long) Cloud Vision OCR pass.
+    """
+    finished_ok = pyqtSignal(list, str)        # rows, source_path
+    failed = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    cancelled = pyqtSignal()
+
+    def __init__(self, file_path: str, template: Dict, format_name: str = ""):
+        super().__init__()
+        self.file_path = file_path
+        self.template = template
+        self.format_name = format_name
+        self._cancel = False
+
+    def cancel(self):
+        self._cancel = True
+        self.requestInterruption()
+
+    def run(self):
+        from ..ai import vision_client
+        from ..ai.template_parser import parse_with_template
+        from ..ai.ai_extractor import AICancelled
+        try:
+            self.progress.emit(f"OCR Cloud Vision pour le format {self.format_name}…")
+            text = vision_client.ocr_pdf(
+                self.file_path,
+                progress_cb=lambda i, n: self.progress.emit(
+                    f"OCR Cloud Vision page {i}/{n}…"
+                ),
+                cancel_check=lambda: self._cancel,
+            )
+            if self._cancel:
+                self.cancelled.emit()
+                return
+            self.progress.emit(f"Parser local {self.format_name}…")
+            rows = parse_with_template(self.file_path, self.template, text_override=text)
+            self.finished_ok.emit(rows, self.file_path)
+        except AICancelled:
+            self.cancelled.emit()
+        except Exception as e:
+            import traceback
+            self.failed.emit(f"{e}\n\n{traceback.format_exc()}")
+
+
 class AILearnWorker(QThread):
     """Run format learning off the UI thread."""
     finished_ok = pyqtSignal(dict)

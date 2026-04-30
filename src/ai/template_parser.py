@@ -53,16 +53,27 @@ def parse_with_template(
     template: Dict,
     *,
     progress_cb=None,
+    text_override: Optional[str] = None,
 ) -> List[Dict]:
-    """Parse a PDF locally using a learned template. Returns list of row dicts."""
+    """Parse a PDF locally using a learned template. Returns list of row dicts.
+
+    If `text_override` is supplied, it is used directly INSTEAD of reading
+    the PDF via pdfplumber. This is the path used for SCANNED documents:
+    the caller (UI) OCRs the PDF first via Cloud Vision, then passes the
+    resulting text here so the AI-generated parser can run on it.
+    """
     pdf_path = Path(pdf_path)
     if not template:
         return []
 
-    pages_text = _read_pages(pdf_path)
-    if not pages_text:
-        return []
-    full_text = "\n".join(pages_text)
+    if text_override is not None:
+        full_text = text_override
+        pages_text = full_text.split("\f") if "\f" in full_text else [full_text]
+    else:
+        pages_text = _read_pages(pdf_path)
+        if not pages_text:
+            return []
+        full_text = "\n".join(pages_text)
 
     # --- Header fields ---
     header = _extract_header(full_text, template)

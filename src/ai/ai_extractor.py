@@ -484,19 +484,29 @@ def learn_format_from_pdf(pdf_path: str | Path, *, cancel_check=None) -> Dict:
 
     pdf_path = Path(pdf_path)
     _check_cancel(cancel_check)
-    text = _read_pdf_text(pdf_path, max_pages=6)
-    if len(text.strip()) < 200:
-        text = vision_client.ocr_pdf(pdf_path, max_pages=4, cancel_check=cancel_check)
+
+    # Try embedded text first. If document is scanned, fall back to Cloud
+    # Vision OCR — and remember it so future docs of the same format are
+    # OCR'd before the local parser runs.
+    digital_text = _read_pdf_text(pdf_path, max_pages=6)
+    is_scanned = len(digital_text.strip()) < 200
+    if is_scanned:
+        # Scanned: use OCR for both the AI sample AND the validation set.
+        # We OCR up to 12 pages here -- enough variety for the parser to be
+        # robust without exploding cost. The same parser will run on the
+        # FULL document at parse time (via vision_client.ocr_pdf again).
+        text = vision_client.ocr_pdf(pdf_path, max_pages=12, cancel_check=cancel_check)
+        full_text = text  # validate against the same OCR text
+    else:
+        text = digital_text
+        try:
+            full_text = _read_pdf_text(pdf_path, max_pages=None)
+        except Exception:
+            full_text = text
+        if len(full_text.strip()) < len(text.strip()):
+            full_text = text
 
     sample = text[:14000]
-    # Full document text used to VALIDATE the generated parser (not sent to AI).
-    # If 0 rows on the full doc, the parser is useless even if it "compiles".
-    try:
-        full_text = _read_pdf_text(pdf_path, max_pages=None)
-    except Exception:
-        full_text = text
-    if len(full_text.strip()) < len(text.strip()):
-        full_text = text
 
     # Render page 1 as PNG for multimodal context (so Gemini SEES the layout).
     page1_png = _render_first_page_png(pdf_path)
@@ -559,10 +569,25 @@ def learn_format_from_pdf(pdf_path: str | Path, *, cancel_check=None) -> Dict:
         return True, len(rows), ""
 
     def _ask(extra_feedback: str = "") -> tuple[Dict, str, str]:
+        scan_warning = ""
+        if is_scanned:
+            scan_warning = (
+                "\n\n*** ATTENTION : ce document est un SCAN (pas de texte natif). "
+                "Le TEXTE (B) ci-dessous provient de l'OCR (Cloud Vision). "
+                "Il peut contenir des fautes OCR : I/1, O/0, S/5, B/8, Z/2, etc. "
+                "Ton parser doit etre TOLERANT aux fautes OCR : utilise des regex "
+                "souples (ex: `[A-Z0-9]{4,5}\\d{6,7}` plutot que `[A-Z]{4}\\d{7}` strict, "
+                "et `[\\d,. ]+` pour les nombres). Le MEME OCR sera applique aux "
+                "futurs documents avant ton parser, donc reproduit fidelement les "
+                "patterns de l'OCR. ***\n"
+            )
         prompt = (
             _LEARN_COMBINED_INSTRUCTIONS
+            + scan_warning
             + extra_feedback
-            + "\n\n--- TEXTE DU MANIFESTE (extrait par pdfplumber, multi-pages) ---\n"
+            + "\n\n--- TEXTE DU MANIFESTE ("
+            + ("OCR Cloud Vision" if is_scanned else "extrait par pdfplumber")
+            + ", multi-pages) ---\n"
             + sample
             + "\n--- FIN TEXTE ---\n"
             + ("\n(L'IMAGE de la page 1 est jointe ci-dessus pour le contexte spatial.)\n"
@@ -649,6 +674,8 @@ def learn_format_from_pdf(pdf_path: str | Path, *, cancel_check=None) -> Dict:
             ok = True
 
     parsed: Dict = dict(meta or {})
+    # Authoritative — we KNOW whether the source had embedded text or not.
+    parsed["is_scanned"] = is_scanned
     parsed["parse_template"] = {
         "header_field_patterns": (meta or {}).get("header_field_patterns") or {},
         # Save the code only if it actually produces rows on the full doc.

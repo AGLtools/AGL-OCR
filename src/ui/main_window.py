@@ -24,7 +24,7 @@ from .canvas import ImageCanvas
 from .format_trainer import FormatTrainerDialog
 from .manifest_review import ManifestReviewDialog
 from .ai_dialogs import (
-    AIExtractWorker, AILearnWorker,
+    AIExtractWorker, AILearnWorker, ScannedTemplateWorker,
     GeminiConfigDialog, LearnedFormatsDialog, LearnedSummaryDialog,
     ensure_api_key,
 )
@@ -1388,7 +1388,8 @@ class MainWindow(QMainWindow):
                 tpl = fmt.get("parse_template") or {}
                 rc = tpl.get("row_count")
                 origin = "fait main" if fmt.get("model") == "handcrafted" else (fmt.get("model") or "ia")
-                label = f"  ▸ {fmt.get('name', '?')}  ({origin}"
+                scan_tag = " 📷 scan" if fmt.get("is_scanned") else ""
+                label = f"  ▸ {fmt.get('name', '?')}{scan_tag}  ({origin}"
                 if rc:
                     label += f", {rc} lignes échantillon"
                 label += ")"
@@ -1402,7 +1403,11 @@ class MainWindow(QMainWindow):
         a_ai.triggered.connect(self._ai_extract)
 
     def _apply_specific_parser(self, learned: Dict):
-        """Force-apply a chosen learned format's parser to the current document."""
+        """Force-apply a chosen learned format's parser to the current document.
+
+        For SCANNED formats (`is_scanned=True`), runs Cloud Vision OCR first
+        in a background worker and feeds the OCR text to the local parser.
+        """
         if not self.source_path:
             QMessageBox.information(self, "Aucun document", "Ouvrez d'abord un document.")
             return
@@ -1413,6 +1418,29 @@ class MainWindow(QMainWindow):
                 f"Le format <b>{learned.get('name', '?')}</b> n'a pas de parseur local utilisable."
             )
             return
+
+        # Scanned format: OCR-then-parse via worker (long, async).
+        if learned.get("is_scanned"):
+            if not ensure_api_key(self):
+                return
+            self.statusBar().showMessage(
+                f"Parseur scanné forcé : {learned.get('name', '?')} — OCR en cours…"
+            )
+            self._scanned_tpl_worker = ScannedTemplateWorker(
+                str(self.source_path), tpl, learned.get("name", "")
+            )
+            self._scanned_tpl_worker.progress.connect(
+                lambda msg: self.statusBar().showMessage(msg)
+            )
+            self._scanned_tpl_worker.finished_ok.connect(self._on_parse_done)
+            self._scanned_tpl_worker.failed.connect(self._on_parse_failed)
+            self._scanned_tpl_worker.cancelled.connect(
+                lambda: self.statusBar().showMessage("OCR annulé.")
+            )
+            self._scanned_tpl_worker.start()
+            return
+
+        # Digital PDF: pdfplumber + parser, synchronous (fast).
         self.statusBar().showMessage(
             f"Parseur forcé : {learned.get('name', '?')}…"
         )
@@ -1450,6 +1478,11 @@ class MainWindow(QMainWindow):
         # The user explicitly taught this format — trust it over generic built-ins.
         learned = self._detect_learned_format()
         if learned and template_is_usable(learned.get("parse_template") or {}):
+            # Scanned learned format → reuse the same OCR-then-template path
+            # as the manual "force parser" menu item.
+            if learned.get("is_scanned"):
+                self._apply_specific_parser(learned)
+                return
             tpl = learned["parse_template"]
             self.statusBar().showMessage(
                 f"Format appris détecté : {learned['name']} — parser local…"
