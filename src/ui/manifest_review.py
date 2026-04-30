@@ -284,7 +284,7 @@ class ManifestReviewDialog(QDialog):
 
     @staticmethod
     def _is_incomplete(row: Dict[str, Any]) -> bool:
-        return any(not (row.get(k) or "").strip() for k in KEY_FIELDS_FOR_FILTER if k in row)
+        return any(not str(row.get(k) or "").strip() for k in KEY_FIELDS_FOR_FILTER if k in row)
 
     # ------------------------------------------------------------------
     # Edit handling

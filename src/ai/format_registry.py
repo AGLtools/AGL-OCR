@@ -66,6 +66,36 @@ def save_learned(
             existing = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             existing = {}
+    existing_template = existing.get("parse_template", {})
+    incoming_template = parse_template if parse_template is not None else None
+
+    def _template_usable(tpl) -> bool:
+        if not isinstance(tpl, dict):
+            return False
+        if (tpl.get("parse_code") or "").strip():
+            return True
+        return bool(tpl.get("row_patterns") or [])
+
+    if incoming_template is None:
+        final_template = existing_template
+    elif _template_usable(incoming_template):
+        # Keep the template that has the higher row_count (more rows = better parser).
+        # Also never overwrite a "handcrafted" model with an AI-generated one.
+        existing_model = existing.get("model", "")
+        if existing_model == "handcrafted":
+            final_template = existing_template
+        else:
+            existing_rows = int((existing_template or {}).get("row_count", 0))
+            incoming_rows = int(incoming_template.get("row_count", 0))
+            # Keep existing if it's strictly better; replace on tie (newer = fresher)
+            if existing_rows > incoming_rows and _template_usable(existing_template):
+                final_template = existing_template
+            else:
+                final_template = incoming_template
+    else:
+        # Do not degrade an existing good local parser with an empty/invalid one.
+        final_template = existing_template
+
     data = {
         "name": name,
         "carrier": carrier or existing.get("carrier", ""),
@@ -74,7 +104,7 @@ def save_learned(
         "model": model or existing.get("model", ""),
         "extraction_hints": extraction_hints or existing.get("extraction_hints", ""),
         "example_rows": example_rows if example_rows is not None else existing.get("example_rows", []),
-        "parse_template": parse_template if parse_template is not None else existing.get("parse_template", {}),
+        "parse_template": final_template,
         "created_at": existing.get("created_at") or datetime.now().isoformat(timespec="seconds"),
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         "samples": int(existing.get("samples", 0)) + 1,
@@ -108,15 +138,25 @@ def detect_learned(text: str) -> Optional[Dict]:
     if not text:
         return None
     text_up = re.sub(r"\s+", " ", text.upper())
+
+    def _has_token(doc: str, token: str) -> bool:
+        # Word-boundary match for simple alnum tokens (e.g. MSC),
+        # substring fallback for tokens containing punctuation/spaces.
+        if re.fullmatch(r"[A-Z0-9_]+", token or ""):
+            return re.search(rf"(?<![A-Z0-9_]){re.escape(token)}(?![A-Z0-9_])", doc) is not None
+        return token in doc
+
     candidates = []
     for fmt in list_learned():
         sig = fmt.get("signature") or []
         norm_sig = [re.sub(r"\s+", " ", s.upper()).strip() for s in sig if s and s.strip()]
         if not norm_sig:
             continue
-        matched = sum(1 for s in norm_sig if s in text_up)
+        matched = sum(1 for s in norm_sig if _has_token(text_up, s))
         ratio = matched / len(norm_sig)
-        if matched >= 2 and ratio >= 0.6:
+        min_matched = 1 if len(norm_sig) == 1 else 2
+        min_ratio = 1.0 if len(norm_sig) == 1 else 0.6
+        if matched >= min_matched and ratio >= min_ratio:
             candidates.append((ratio, matched, fmt))
     if not candidates:
         return None

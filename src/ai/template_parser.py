@@ -67,7 +67,19 @@ def parse_with_template(
     # --- Header fields ---
     header = _extract_header(full_text, template)
 
-    # --- Row fields ---
+    # --- Mode 1: AI-generated parse(text) Python function (preferred) ---
+    parse_code = (template.get("parse_code") or "").strip()
+    if parse_code:
+        if progress_cb:
+            progress_cb("Parser local (code IA)…")
+        rows = run_parse_code(parse_code, full_text)
+        for r in rows:
+            for k, v in header.items():
+                r.setdefault(k, v)
+            r.setdefault("source_file", str(pdf_path))
+        return rows
+
+    # --- Mode 2 (legacy): row_patterns regex line-by-line ---
     row_patterns = _compile_row_patterns(template.get("row_patterns") or [])
     if not row_patterns:
         return []
@@ -153,7 +165,66 @@ def _compile_row_patterns(patterns) -> List[re.Pattern]:
 
 
 def template_is_usable(template: Optional[Dict]) -> bool:
-    """True if the template has at least one valid row pattern."""
+    """True if the template has a parse_code function OR at least one valid row pattern."""
     if not template:
         return False
+    if (template.get("parse_code") or "").strip():
+        return True
     return bool(_compile_row_patterns(template.get("row_patterns") or []))
+
+
+# ────────────────────────────────────────────────────────────────────────
+# AI-generated parse(text) execution (sandboxed)
+# ────────────────────────────────────────────────────────────────────────
+_SAFE_BUILTINS = {
+    "abs", "all", "any", "bool", "dict", "enumerate", "filter", "float",
+    "int", "isinstance", "len", "list", "map", "max", "min", "next",
+    "range", "reversed", "set", "sorted", "str", "sum", "tuple", "zip",
+    "True", "False", "None", "print",
+}
+
+
+def run_parse_code(code: str, text: str) -> List[Dict]:
+    """Exec AI-generated `parse(text) -> list[dict]` in a restricted namespace.
+
+    Returns [] on any error (compile, runtime, wrong return type).
+    """
+    import builtins as _b
+    safe_builtins = {n: getattr(_b, n) for n in _SAFE_BUILTINS if hasattr(_b, n)}
+    glb: Dict = {"__builtins__": safe_builtins, "re": re}
+    try:
+        exec(compile(code, "<learned_parser>", "exec"), glb)
+    except Exception:
+        return []
+    fn = glb.get("parse")
+    if not callable(fn):
+        return []
+    try:
+        import threading
+        result: list = []
+        exc: list = []
+
+        def _run():
+            try:
+                out = fn(text)
+                if isinstance(out, list):
+                    result.extend(out)
+            except Exception as e:
+                exc.append(e)
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=10.0)  # max 10 s for the generated parser
+        if t.is_alive() or exc:
+            return []
+    except Exception:
+        return []
+    rows: List[Dict] = []
+    for item in result:
+        if isinstance(item, dict):
+            # keep only known row fields + page (if provided)
+            clean = {k: v for k, v in item.items()
+                     if k in _ROW_FIELDS or k == "page"}
+            if clean:
+                rows.append(clean)
+    return rows

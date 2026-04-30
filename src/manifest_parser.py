@@ -541,8 +541,9 @@ class ManifestParser:
             return "cma_cgm"
         if "MAERSK" in text:
             return "maersk"
-        if "MSC" in text and "CARGO MANIFEST" in text:
-            return "msc"
+        # NOTE: MSC is intentionally NOT in built-in heuristics.
+        # MSC manifests have no working built-in parser — they should be handled
+        # by the AI-learned format (parse_template) registered at runtime.
         # 3) Detect SAKINA-style scanned manifests (text might be sparse/absent)
         if "SAKINA" in text or ("DSM LIVERPOOL" in text and "QUESTIONNAIRE" in text):
             return "sakina"

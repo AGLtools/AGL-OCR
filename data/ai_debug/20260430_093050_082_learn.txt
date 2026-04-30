@@ -1,8 +1,8 @@
 === AI DEBUG LOG — LEARN ===
-Timestamp : 2026-04-29T16:07:00
+Timestamp : 2026-04-30T09:30:50
 Source    : C:\Users\m.taleb\Downloads\MSC GEMMA GT601E IMP.pdf
 
---- PROMPT SENT (4901 chars) ---
+--- PROMPT SENT (9888 chars) ---
 Tu es un expert en classification de documents maritimes.
 
 Voici le début d'un manifeste de cargaison. Identifie son FORMAT (transporteur émetteur).
@@ -137,22 +137,110 @@ kgs.
 1020 BAG(S) of PP 506P 249 25985.00kgs.
 57287.12lbs.
 Harmonized Code: 390210
---- FIN ---
 
---- RAW RESPONSE (527 chars) ---
+MEDITERRANEAN DEPARTURE DATE Page 3 of 90
+SHIPPING COMPANY 07 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: VALENCIA
+Abidjan, , CI Liberia KING ABDULLAH ABIDJAN (not required in U.S.)
+PORT 02, SAUDI
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRSA. (RMNA) BIA 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+CN:TGBU7253449 40' HIGH CUBE
+SN: 1354912
+Tare Weight: 3,700
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:MSDU6697232 40' HIGH CUBE
+SN: 1351220
+Tare Weight: 3,700
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:TXGU6791756 40' HIGH CUBE
+SN: 1351027
+Tare Weight: 3,700
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:TGBU4636296 40' HIGH CUBE
+SN: 1355160
+Tare Weight: 3,620
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+
+MEDITERRANEAN DEPARTURE DATE Page 4 of 90
+SHIPPING COMPANY 07 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: VALENCIA
+Abidjan, , CI Liberia KING ABDULLAH ABIDJAN (not required in U.S.)
+PORT 02, SAUDI
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRSA. (RMNA) BIA 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+CN:MSMU5614564 40' HIGH CUBE
+SN: 1353873
+Tare Weight: 3,840
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:MSNU7836585 40' HIGH CUBE
+SN: 1352398
+Tare Weight: 3,840
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:BEAU5827961 40' HIGH CUBE
+SN: 1351219
+Tare Weight: 3,700
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:MSMU8253911 40' HIGH CUBE
+SN: 1355157
+Tare Weight: 3,840
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+
+MEDITERRANEAN DEPARTURE DATE Page 5 of 90
+SHIPPING COMPANY 07 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: VALENCIA
+Abidjan, , CI Liberia KING ABDULLAH ABIDJAN (not required in U.S.)
+PORT 02, SAUDI
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRSA. (RMNA) BIA 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINE
+... (1888 more chars truncated)
+
+--- RAW RESPONSE (546 chars) ---
 {
   "format_name": "MSC",
   "carrier_name": "Mediterranean Shipping Company S.A.",
   "signature_keywords": [
     "MEDITERRANEAN",
     "SHIPPING COMPANY",
+    "S.A., GENEVA",
     "MSC GEMMA",
     "BILL ISSUANCE",
-    "MEDU",
-    "(15358)"
+    "MEDU"
   ],
   "is_scanned": false,
-  "extraction_hints": "Le manifeste est paginé avec 'Page X of Y'. Les informations du navire et du voyage sont en haut. Les détails de chaque B/L sont regroupés, avec les informations SH/CO/NF en haut, suivies des conteneurs associés. Les préfixes de B/L commencent par 'MEDU'."
+  "extraction_hints": "Le numéro de BL est précédé de 'SH:' et commence par 'MEDU'. Les informations du navire sont sur la même ligne que '1a.- NAME OF SHIP'. Les conteneurs sont listés sous 'CONTAINER NRS. (CN)' avec leur préfixe (MSBU, CARU, TRHU, MSMU, TGBU, MSDU, TXGU, MSNU, BEAU, TCNU)."
 }
 
 --- PARSED ---
@@ -162,11 +250,11 @@ Harmonized Code: 390210
   "signature_keywords": [
     "MEDITERRANEAN",
     "SHIPPING COMPANY",
+    "S.A., GENEVA",
     "MSC GEMMA",
     "BILL ISSUANCE",
-    "MEDU",
-    "(15358)"
+    "MEDU"
   ],
   "is_scanned": false,
-  "extraction_hints": "Le manifeste est paginé avec 'Page X of Y'. Les informations du navire et du voyage sont en haut. Les détails de chaque B/L sont regroupés, avec les informations SH/CO/NF en haut, suivies des conteneurs associés. Les préfixes de B/L commencent par 'MEDU'."
+  "extraction_hints": "Le numéro de BL est précédé de 'SH:' et commence par 'MEDU'. Les informations du navire sont sur la même ligne que '1a.- NAME OF SHIP'. Les conteneurs sont listés sous 'CONTAINER NRS. (CN)' avec leur préfixe (MSBU, CARU, TRHU, MSMU, TGBU, MSDU, TXGU, MSNU, BEAU, TCNU)."
 }

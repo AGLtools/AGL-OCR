@@ -160,22 +160,26 @@ def map_to_midas(row: dict[str, Any], static_overrides: dict | None = None) -> d
     defaults = _lookups().get("defaults", {})
     overrides = static_overrides or {}
 
-    bl_number   = (row.get("bl_number") or "").strip()
-    vessel      = (row.get("vessel") or "").strip()
-    pol         = (row.get("port_of_loading") or "").strip()
-    pod         = (row.get("port_of_discharge") or "").strip()
-    delivery    = (row.get("place_of_delivery") or "").strip() or pod
-    acceptance  = (row.get("place_of_acceptance") or "").strip() or pol
-    shipper     = (row.get("shipper") or "").strip()
-    consignee   = (row.get("consignee") or "").strip()
-    forwarder   = (row.get("freight_forwarder") or "").strip()
-    description = (row.get("description") or "").strip()
-    weight      = (row.get("weight") or "").strip()
-    volume      = (row.get("volume") or "").strip()
-    pack_qty    = (row.get("pack_qty") or "").strip()
-    container   = (row.get("container_number") or "").strip()
-    ctr_type    = (row.get("container_type") or "").strip()
-    movement    = (row.get("movement") or "").strip()
+    def _s(key: str) -> str:
+        v = row.get(key)
+        return "" if v is None else str(v).strip()
+
+    bl_number   = _s("bl_number")
+    vessel      = _s("vessel")
+    pol         = _s("port_of_loading")
+    pod         = _s("port_of_discharge")
+    delivery    = _s("place_of_delivery") or pod
+    acceptance  = _s("place_of_acceptance") or pol
+    shipper     = _s("shipper")
+    consignee   = _s("consignee")
+    forwarder   = _s("freight_forwarder")
+    description = _s("description")
+    weight      = _s("weight")
+    volume      = _s("volume")
+    pack_qty    = _s("pack_qty")
+    container   = _s("container_number")
+    ctr_type    = _s("container_type")
+    movement    = _s("movement")
 
     carrier   = _resolve_carrier(bl_number, fallback=row.get("_shipowner", ""))
     container_info = _resolve_container(ctr_type)

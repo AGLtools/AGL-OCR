@@ -159,14 +159,19 @@ def _get_client():
 
 
 # ── Core generation helper ─────────────────────────────────────────────
-def _call_model(model_name: str, prompt: str, generation_config: dict):
-    """Single call with the new SDK. Returns response with .text attribute."""
+def _call_model(model_name: str, prompt: str, generation_config: dict, image_bytes: Optional[bytes] = None):
+    """Single call with the new SDK. Returns response with .text attribute.
+
+    If `image_bytes` (PNG) is provided, sends a multimodal request so the
+    model can also SEE the page layout (critical for learning column-based
+    formats where pdfplumber merges columns onto one line).
+    """
     from google.genai import types  # type: ignore
     client = _get_client()
 
     mime = generation_config.get("response_mime_type", "text/plain")
     temperature = generation_config.get("temperature", 0.1)
-    max_tokens = generation_config.get("max_output_tokens", 65000)
+    max_tokens = generation_config.get("max_output_tokens", 8192)  # callers override for large extractions
 
     cfg_kwargs = dict(
         response_mime_type=mime,
@@ -174,17 +179,28 @@ def _call_model(model_name: str, prompt: str, generation_config: dict):
         max_output_tokens=max_tokens,
     )
     # Gemini 2.5 has an internal "thinking" mode that consumes the output
-    # budget BEFORE the visible response. We disable it to get the full JSON.
-    if "2.5" in model_name:
+    # budget BEFORE the visible response. We disable it by default to get
+    # the full JSON, but callers doing hard reasoning (e.g. LEARN with Pro)
+    # can opt-in by setting "enable_thinking": True.
+    if "2.5" in model_name and not generation_config.get("enable_thinking"):
         try:
             cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
         except Exception:
             pass  # Older SDK without ThinkingConfig — ignore
 
     config = types.GenerateContentConfig(**cfg_kwargs)
+
+    if image_bytes:
+        contents = [
+            types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+            prompt,
+        ]
+    else:
+        contents = prompt
+
     return client.models.generate_content(
         model=model_name,
-        contents=prompt,
+        contents=contents,
         config=config,
     )
 
@@ -194,8 +210,11 @@ def generate_with_fallback(
     *,
     generation_config: Optional[dict] = None,
     primary: Optional[str] = None,
+    image_bytes: Optional[bytes] = None,
 ):
     """Generate content with automatic model fallback on 429/quota errors.
+
+    Optional `image_bytes` (PNG) enables multimodal input.
 
     Returns the response object (has .text attribute).
     """
@@ -209,7 +228,7 @@ def generate_with_fallback(
             continue
         seen.add(name)
         try:
-            return _call_model(name, prompt, cfg)
+            return _call_model(name, prompt, cfg, image_bytes=image_bytes)
         except Exception as e:
             msg = str(e).lower()
             # Retry on genuine rate-limit / quota errors

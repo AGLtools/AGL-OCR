@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QListWidgetItem, QLineEdit, QMessageBox, QInputDialog, QComboBox,
     QGroupBox, QFormLayout, QSplitter, QApplication, QDialog, QPlainTextEdit,
+    QToolButton, QMenu,
 )
 
 from ..ocr_engine import OCREngine, Page, Token
@@ -30,6 +31,7 @@ from .ai_dialogs import (
 from ..ai import has_api_key, detect_learned
 from ..ai.template_parser import parse_with_template, template_is_usable
 from ..ai.gemini_client import get_ocr_engine, set_ocr_engine
+from ..ai.format_registry import list_learned
 
 
 # ============================================================
@@ -188,6 +190,40 @@ class OCRWorker(QThread):
             self.failed.emit(str(e))
 
 
+class PageLoadWorker(QThread):
+    """Render remaining pages in batches of BATCH_SIZE after page 1 is shown."""
+    pages_ready = pyqtSignal(list, int)   # new pages, first 0-based index they start at
+    progress = pyqtSignal(int, int)       # rendered_so_far, total
+    failed = pyqtSignal(str)
+
+    BATCH_SIZE = 5
+
+    def __init__(self, engine: OCREngine, file_path: str, first_page: int, total: int):
+        super().__init__()
+        self.engine = engine
+        self.file_path = file_path
+        self.first_page = first_page   # 1-based
+        self.total = total
+
+    def run(self):
+        try:
+            done = 0
+            p = self.first_page
+            while p <= self.total:
+                batch = self.BATCH_SIZE
+                pages = self.engine.load_document(
+                    self.file_path, first_page=p, max_pages=batch
+                )
+                if not pages:
+                    break
+                self.pages_ready.emit(pages, p - 1)  # 0-based start
+                done += len(pages)
+                self.progress.emit(done, self.total - self.first_page + 1)
+                p += batch
+        except Exception as e:
+            self.failed.emit(str(e))
+
+
 # -------------------- Main window --------------------
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -226,6 +262,12 @@ class MainWindow(QMainWindow):
         # Used by _reopen_review() so the user can re-inspect without re-running.
         self._last_extract_rows: List[Dict] = []
         self._last_extract_source: str = ""
+
+        # When set, _on_ocr_done will auto-trigger _parse_manifest after rendering.
+        # Used when a learned format with a usable parse_template is detected at open.
+        self._auto_parse_after_open: Optional[Dict] = None
+        # Background worker for progressive page loading (learned-format fast path)
+        self._page_load_worker: Optional[PageLoadWorker] = None
 
         self._build_ui()
         self._refresh_template_list()
@@ -312,14 +354,20 @@ class MainWindow(QMainWindow):
         self.btn_process_all = QPushButton("▶▶ Traiter TOUTES les pages avec le modèle actif")
         self.btn_process_all.setStyleSheet("font-weight: bold; background-color: #cce5ff;")
         self.btn_process_all.clicked.connect(self._process_all_pages)
-        self.btn_parse_manifest = QPushButton("🔍 Analyse intelligente du manifeste")
-        self.btn_parse_manifest.setStyleSheet("font-weight: bold; background-color: #d4edda;")
+        self.btn_parse_manifest = QToolButton()
+        self.btn_parse_manifest.setText("🔍 Analyse intelligente du manifeste ▾")
+        self.btn_parse_manifest.setStyleSheet("font-weight: bold; background-color: #d4edda; padding: 6px;")
         self.btn_parse_manifest.setToolTip(
-            "Détecte automatiquement le format (CMA CGM, Maersk…) et extrait\n"
-            "tous les BL/conteneurs via une machine à états. Fonctionne sur les\n"
-            "PDF avec texte intégré. Aucun modèle requis — 360 pages en < 5 s."
+            "Cliquez pour auto-détection, ou ouvrez le menu pour choisir\n"
+            "un parseur spécifique parmi les formats déjà appris."
         )
+        self.btn_parse_manifest.setPopupMode(QToolButton.MenuButtonPopup)
+        self.btn_parse_manifest.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.btn_parse_manifest.clicked.connect(self._parse_manifest)
+        # Menu rebuilt dynamically every time it opens (so newly learned formats appear)
+        self._parse_menu = QMenu(self.btn_parse_manifest)
+        self._parse_menu.aboutToShow.connect(self._rebuild_parse_menu)
+        self.btn_parse_manifest.setMenu(self._parse_menu)
         # AI extraction — universal fallback for any unknown format
         self.btn_ai_extract = QPushButton("🤖 Extraction IA universelle (Gemini)")
         self.btn_ai_extract.setStyleSheet(
@@ -454,13 +502,46 @@ class MainWindow(QMainWindow):
         # pdfplumber sniff is ~50ms; full 360-page render is many minutes.
         path_obj = Path(path)
         fmt = None
-        if path_obj.suffix.lower() == ".pdf" and self.manifest_parser.available:
+        learned = None
+        sniff_text = ""
+        if path_obj.suffix.lower() == ".pdf":
+            # Read first 2 pages once for both detection paths
             try:
-                fmt = ManifestParser.detect_format(path_obj)
+                import pdfplumber
+                with pdfplumber.open(str(path_obj)) as pdf:
+                    sniff_text = "\n".join(
+                        (p.extract_text() or "") for p in pdf.pages[:2]
+                    )
             except Exception:
-                fmt = None
+                sniff_text = ""
 
-        # ---- Step 2: known manifest -> propose Smart Parse (no OCR) ----
+            # Priority A: AI-LEARNED format (the user explicitly taught it)
+            if sniff_text.strip():
+                try:
+                    learned = detect_learned(sniff_text)
+                except Exception:
+                    learned = None
+
+            # Priority B: built-in deterministic parser (CMA CGM, etc.)
+            if not learned and self.manifest_parser.available:
+                try:
+                    fmt = ManifestParser.detect_format(path_obj)
+                except Exception:
+                    fmt = None
+
+        # ---- Step 2a: LEARNED format with usable template -> fast path ----
+        # Render only page 1 immediately, run local parser, load rest in background.
+        if learned and template_is_usable(learned.get("parse_template") or {}):
+            try:
+                import pdfplumber as _plb
+                with _plb.open(str(path_obj)) as _pdf:
+                    total_pages = len(_pdf.pages)
+            except Exception:
+                total_pages = None
+            self._open_learned_fast(str(path_obj), learned, total_pages)
+            return
+
+        # ---- Step 2b: built-in manifest -> propose Smart Parse (no OCR) ----
         if fmt is not None:
             reply = QMessageBox.question(
                 self, "Manifeste détecté",
@@ -476,7 +557,33 @@ class MainWindow(QMainWindow):
                 self._open_in_manifest_mode(str(path_obj), fmt)
                 return
 
-        # ---- Step 3: fallback -> normal OCR pipeline ----
+        # ---- Step 2c / 3a: learned-without-parser OR unknown digital PDF ----
+        # Both paths render page 1 first, THEN show the appropriate prompt.
+        if path_obj.suffix.lower() == ".pdf" and sniff_text.strip():
+            self.manifest_mode = False
+            self.source_path = path_obj
+            try:
+                import pdfplumber as _plb
+                with _plb.open(str(path_obj)) as _pdf:
+                    total_pages = len(_pdf.pages)
+            except Exception:
+                total_pages = 1
+            label = (f"Format appris : {learned.get('name')} — aperçu page 1…"
+                     if learned else f"Aperçu de {path_obj.name} (page 1)…")
+            self.statusBar().showMessage(label)
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self._preview_worker = OCRWorker(self.engine, str(path_obj), max_pages=1)
+            pending_learned = learned  # captured for the callback
+            self._preview_worker.finished_ok.connect(
+                lambda pages, src: self._on_unknown_preview_ready(
+                    pages, src, total_pages, pending_learned
+                )
+            )
+            self._preview_worker.failed.connect(self._on_ocr_failed)
+            self._preview_worker.start()
+            return
+
+        # Scanned PDF (no embedded text) or image: full render + OCR pipeline
         self.manifest_mode = False
         self.statusBar().showMessage(
             f"Rendu des pages de {path_obj.name}… (peut prendre du temps pour les gros PDF)"
@@ -486,6 +593,177 @@ class MainWindow(QMainWindow):
         self.worker.finished_ok.connect(self._on_ocr_done)
         self.worker.failed.connect(self._on_ocr_failed)
         self.worker.start()
+
+    def _open_learned_fast(self, path: str, learned: Dict, total_pages: Optional[int]):
+        """Fast open for AI-learned formats with a local parse template.
+
+        1. Render only page 1 (~2 s) and show it immediately.
+        2. Run parse_with_template (pure pdfplumber regex, < 1 s).
+        3. Load remaining pages in background batches — user can navigate while they arrive.
+        """
+        self.manifest_mode = False
+        self.source_path = Path(path)
+        self._auto_parse_after_open = learned
+        n_label = f" ({total_pages} pages)" if total_pages else ""
+        self.statusBar().showMessage(
+            f"Format appris : {learned['name']}{n_label} — chargement page 1…"
+        )
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self._learned_total_pages = total_pages or 0
+        self._preview_worker = OCRWorker(self.engine, path, max_pages=1)
+        self._preview_worker.finished_ok.connect(
+            lambda pages, src: self._on_learned_preview_ready(pages, src, total_pages)
+        )
+        self._preview_worker.failed.connect(self._on_ocr_failed)
+        self._preview_worker.start()
+
+    def _on_learned_preview_ready(self, pages: List[Page], source_path: str, total_pages: Optional[int]):
+        """Page 1 rendered — show it, run parser, start background load for remaining pages."""
+        QApplication.restoreOverrideCursor()
+        self.pages = pages
+        self.source_path = Path(source_path)
+        self.corrections = CorrectionStore(self.source_path)
+        self.current_extraction = {}
+        self._reset_field_list()
+
+        total = total_pages or 1
+        self.page_combo.blockSignals(True)
+        self.page_combo.clear()
+        self.page_combo.addItem(f"Page 1 / {total}")
+        for i in range(2, total + 1):
+            self.page_combo.addItem(f"Page {i} / {total} (chargement…)")
+        self.page_combo.blockSignals(False)
+        self.current_page_idx = 0
+
+        learned = self._auto_parse_after_open
+        self.tpl_status.setText(
+            f"📄 Format appris : <b>{learned['name']}</b> — parser local en cours…"
+        )
+        self.active_template = None
+        self.canvas.load_page(pages[0], self._on_token_clicked)
+
+        # Start loading remaining pages in background
+        if total > 1:
+            self._page_load_worker = PageLoadWorker(
+                self.engine, source_path, first_page=2, total=total
+            )
+            self._page_load_worker.pages_ready.connect(self._on_bg_pages_ready)
+            self._page_load_worker.progress.connect(
+                lambda done, n: self.statusBar().showMessage(
+                    f"Chargement pages… {done + 1}/{n + 1}"
+                )
+            )
+            self._page_load_worker.start()
+
+        # Run local parser immediately (pdfplumber, very fast)
+        QApplication.processEvents()
+        self._parse_manifest()
+
+    def _on_unknown_preview_ready(self, pages: List[Page], source_path: str,
+                                   total_pages: int, learned: Optional[Dict] = None):
+        """Show page 1 for unknown digital PDFs (or learned-without-parser),
+        then ask the user what to do."""
+        QApplication.restoreOverrideCursor()
+        self.pages = pages
+        self.source_path = Path(source_path)
+        self.corrections = CorrectionStore(self.source_path)
+        self.current_extraction = {}
+        self._reset_field_list()
+
+        total = max(total_pages or 1, 1)
+        self.page_combo.blockSignals(True)
+        self.page_combo.clear()
+        self.page_combo.addItem(f"Page 1 / {total}")
+        for i in range(2, total + 1):
+            self.page_combo.addItem(f"Page {i} / {total} (chargement…)")
+        self.page_combo.blockSignals(False)
+        self.current_page_idx = 0
+
+        # Show preview immediately
+        self.canvas.load_page(pages[0], self._on_token_clicked)
+
+        # Continue background rendering of remaining pages for smooth navigation
+        if total > 1:
+            self._page_load_worker = PageLoadWorker(
+                self.engine, source_path, first_page=2, total=total
+            )
+            self._page_load_worker.pages_ready.connect(self._on_bg_pages_ready)
+            self._page_load_worker.progress.connect(
+                lambda done, n: self.statusBar().showMessage(
+                    f"Chargement pages… {done + 1}/{n + 1}"
+                )
+            )
+            self._page_load_worker.start()
+
+        # Then ask action — different prompt depending on whether the format
+        # is already learned (but parser-less) or completely unknown.
+        if learned is not None:
+            box = QMessageBox(self)
+            box.setWindowTitle(f"Format appris : {learned.get('name', 'inconnu')}")
+            box.setIcon(QMessageBox.Question)
+            box.setText(
+                f"Le format <b>{learned.get('name', '?')}</b> est reconnu, mais aucun parser local "
+                f"n'est disponible.<br><br><b>Que faire ?</b>"
+            )
+            btn_ai = box.addButton("🤖 Extraction IA", QMessageBox.AcceptRole)
+            btn_relearn = box.addButton("🎓 Ré-apprendre ce format", QMessageBox.ActionRole)
+            box.addButton("Annuler", QMessageBox.RejectRole)
+            box.exec_()
+            clicked = box.clickedButton()
+            if clicked is btn_ai:
+                self._run_ai_extraction(
+                    extra_hints=learned.get("extraction_hints", ""),
+                    example_rows=learned.get("example_rows") or [],
+                )
+            elif clicked is btn_relearn:
+                self._ai_learn_format()
+            return
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Format inconnu")
+        box.setIcon(QMessageBox.Question)
+        box.setText(
+            "Aucun format intégré reconnu pour ce document.<br><br>"
+            "<b>Que faire ?</b>"
+        )
+        btn_ai = box.addButton("🤖 Extraction IA (recommandé)", QMessageBox.AcceptRole)
+        btn_learn = box.addButton("🎓 Apprendre ce format à l'IA", QMessageBox.ActionRole)
+        btn_manual = box.addButton("Choisir manuellement…", QMessageBox.ActionRole)
+        box.addButton("Annuler", QMessageBox.RejectRole)
+        box.exec_()
+        clicked = box.clickedButton()
+        if clicked is btn_ai:
+            self._run_ai_extraction()
+            return
+        if clicked is btn_learn:
+            self._ai_learn_format()
+            return
+        if clicked is btn_manual:
+            fmt, ok = QInputDialog.getItem(
+                self, "Format de manifeste",
+                "Sélectionner le parser à utiliser :",
+                ["cma_cgm", "maersk", "msc", "generic"],
+                0, False,
+            )
+            if ok:
+                self._open_in_manifest_mode(str(self.source_path), fmt)
+
+    def _on_bg_pages_ready(self, new_pages: List[Page], start_idx: int):
+        """Background worker delivered a batch of rendered pages."""
+        # Extend self.pages to accommodate
+        needed = start_idx + len(new_pages)
+        while len(self.pages) < needed:
+            self.pages.append(None)  # type: ignore[arg-type]
+        for i, p in enumerate(new_pages):
+            self.pages[start_idx + i] = p
+        # Update combo labels (remove "chargement…")
+        self.page_combo.blockSignals(True)
+        total = len(self.pages)
+        for i, p in enumerate(new_pages):
+            combo_idx = start_idx + i
+            if combo_idx < self.page_combo.count():
+                self.page_combo.setItemText(combo_idx, f"Page {combo_idx + 1} / {total}")
+        self.page_combo.blockSignals(False)
 
     def _open_in_manifest_mode(self, path: str, fmt: str):
         """Open a manifest: render only page 1 for preview, then run state-machine
@@ -584,7 +862,13 @@ class MainWindow(QMainWindow):
         if not self.pages:
             return
         self.current_page_idx = idx
-        page = self.pages[idx]
+        page = self.pages[idx] if idx < len(self.pages) else None
+        if page is None:
+            # Page not yet rendered by background worker — ask user to wait
+            self.statusBar().showMessage(
+                f"Page {idx + 1} en cours de chargement, veuillez patienter…"
+            )
+            return
         # Lazy OCR for any newly-displayed page
         if not page.ocr_done:
             QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -1079,6 +1363,76 @@ class MainWindow(QMainWindow):
     # ============================================================
     # Smart Manifest Parsing (state-machine, no template needed)
     # ============================================================
+    def _rebuild_parse_menu(self):
+        """Rebuild the 'Analyse intelligente' dropdown each time it opens.
+
+        Lists: auto-detect | every learned format (force apply) | learn new | AI extract.
+        """
+        menu = self._parse_menu
+        menu.clear()
+
+        a_auto = menu.addAction("⚡ Auto-détection (recommandé)")
+        a_auto.triggered.connect(self._parse_manifest)
+
+        # List all learned formats — user can FORCE one regardless of detection.
+        try:
+            learned_list = list_learned()
+        except Exception:
+            learned_list = []
+        usable = [f for f in learned_list if template_is_usable(f.get("parse_template") or {})]
+
+        if usable:
+            menu.addSeparator()
+            menu.addAction("Forcer un parseur spécifique :").setEnabled(False)
+            for fmt in usable:
+                tpl = fmt.get("parse_template") or {}
+                rc = tpl.get("row_count")
+                origin = "fait main" if fmt.get("model") == "handcrafted" else (fmt.get("model") or "ia")
+                label = f"  ▸ {fmt.get('name', '?')}  ({origin}"
+                if rc:
+                    label += f", {rc} lignes échantillon"
+                label += ")"
+                act = menu.addAction(label)
+                act.triggered.connect(lambda _checked=False, f=fmt: self._apply_specific_parser(f))
+
+        menu.addSeparator()
+        a_learn = menu.addAction("🎓 Apprendre / régénérer un parseur via IA…")
+        a_learn.triggered.connect(self._ai_learn_format)
+        a_ai = menu.addAction("🤖 Extraction IA universelle (sans parseur local)")
+        a_ai.triggered.connect(self._ai_extract)
+
+    def _apply_specific_parser(self, learned: Dict):
+        """Force-apply a chosen learned format's parser to the current document."""
+        if not self.source_path:
+            QMessageBox.information(self, "Aucun document", "Ouvrez d'abord un document.")
+            return
+        tpl = learned.get("parse_template") or {}
+        if not template_is_usable(tpl):
+            QMessageBox.warning(
+                self, "Parseur indisponible",
+                f"Le format <b>{learned.get('name', '?')}</b> n'a pas de parseur local utilisable."
+            )
+            return
+        self.statusBar().showMessage(
+            f"Parseur forcé : {learned.get('name', '?')}…"
+        )
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            rows = parse_with_template(str(self.source_path), tpl)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "Erreur parser local", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        if not rows:
+            QMessageBox.information(
+                self, "Aucune ligne",
+                f"Le parseur <b>{learned.get('name', '?')}</b> n'a extrait aucune ligne "
+                f"de ce document. Le format est probablement différent."
+            )
+            return
+        self._on_parse_done(rows, str(self.source_path))
+
     def _parse_manifest(self):
         """Auto-detect format and parse the current document with state machine."""
         if not self.source_path:
@@ -1454,6 +1808,18 @@ class MainWindow(QMainWindow):
     def _on_ai_learn_done(self, learned: dict):
         QApplication.restoreOverrideCursor()
         self.act_cancel.setEnabled(False)
+        tpl = (learned or {}).get("parse_template") or {}
+        has_name = bool((learned or {}).get("format_name"))
+        has_sig = bool((learned or {}).get("signature_keywords"))
+        has_code = bool((tpl.get("parse_code") or "").strip())
+        if not (has_name or has_sig or has_code):
+            self.statusBar().showMessage("Échec de l'analyse IA (réponse vide).")
+            QMessageBox.warning(
+                self, "Apprentissage IA incomplet",
+                "L'IA a répondu avec un JSON incomplet/invalide.\n\n"
+                "Ouvrez le dernier log IA, puis réessayez l'apprentissage."
+            )
+            return
         self.statusBar().showMessage("Format analysé — vérification utilisateur.")
         dlg = LearnedSummaryDialog(learned, parent=self)
         if dlg.exec_() == dlg.Accepted:

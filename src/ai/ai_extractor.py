@@ -13,6 +13,7 @@ Output schema matches src.manifest_parser.ManifestRow keys, so downstream
 midas_mapper / review dialog work without changes.
 """
 from __future__ import annotations
+import base64
 import json
 import re
 import threading
@@ -91,81 +92,137 @@ SCHÉMA :
 """ + _SCHEMA_JSON
 
 
-# ── Format learning prompt ─────────────────────────────────────────────────
-_LEARN_INSTRUCTIONS = """Tu es un expert en classification de documents maritimes.
+# -- LEARN prompt: classification + AI-generated parse(text) Python function --
+# Two-section response: JSON metadata, then Python code between explicit markers.
+# This avoids ALL JSON-escape pitfalls with regex backslashes.
+#
+# CRITICAL: this prompt is paired with an IMAGE of page 1 so the model can SEE
+# the spatial layout (columns, alignment) AND read the EXACT text pdfplumber
+# produces. The image+text pair lets the model understand the gap between
+# "what a human reads" and "what the parser receives".
+_LEARN_COMBINED_INSTRUCTIONS = """Tu es L'EXPERT mondial en retro-ingenierie de manifestes maritimes (MSC, CMA-CGM, Maersk, Hapag-Lloyd, ONE, Evergreen, COSCO, etc.).
 
-Voici le début d'un manifeste de cargaison. Identifie son FORMAT (transporteur émetteur).
+Tu recois DEUX choses pour ce travail :
+  (A) Une IMAGE de la page 1 du manifeste (mise en page reelle, colonnes, alignement visuel).
+  (B) Le TEXTE BRUT exact extrait par pdfplumber (multi-pages).
 
-Réponds en JSON STRICT, sans markdown :
+==> COMPRENDS BIEN : ton parser tournera sur le TEXTE (B), JAMAIS sur l'image.
+==> Mais l'image (A) te montre la STRUCTURE LOGIQUE pour que tu puisses
+    faire le pont avec ce que pdfplumber a produit (souvent tres different
+    visuellement : pdfplumber FUSIONNE souvent les colonnes sur UNE SEULE
+    LIGNE separees par des espaces, alors que visuellement elles paraissent
+    sur plusieurs lignes).
+
+Ta mission : produire (1) un JSON de classification, et (2) une FONCTION
+PYTHON `parse(text)` capable d'extraire toutes les lignes de cargaison
+LOCALEMENT (sans IA) lors des prochains documents identiques.
+
+REPONDS EXACTEMENT DANS CE FORMAT, RIEN AVANT, RIEN APRES :
+
+<<<JSON>>>
 {
-  "format_name": "nom court du format en MAJUSCULES (ex: MSC, CMA_CGM, MAERSK, HAPAG_LLOYD, SAKINA, COSCO)",
+  "format_name": "MAJUSCULES (ex: MSC, CMA_CGM, MAERSK)",
   "carrier_name": "nom complet du transporteur",
-  "signature_keywords": ["mot1", "mot2", "mot3"],
-  "is_scanned": true,
-  "extraction_hints": "particularités à retenir pour l'extraction future (mise en page, étiquettes utilisées, pièges OCR)"
-}
-
-Règles pour signature_keywords :
-- 3 à 6 tokens TRÈS SPÉCIFIQUES présents dans CE document
-- IMPORTANT : chaque token doit être 1 à 3 mots MAXIMUM, sans saut de ligne
-  (les phrases longues comme "MEDITERRANEAN SHIPPING COMPANY S.A., GENEVA" ne
-  matcheront PAS car les PDF éclatent le texte sur plusieurs colonnes/lignes)
-- Doivent permettre de reconnaître ce format à l'avenir SANS confusion avec d'autres transporteurs
-- Évite les mots trop génériques : "BL", "VESSEL", "CARGO", "MANIFEST" (présents partout)
-- Privilégie :
-  * préfixe(s) de numéros BL (ex: "MEDU", "CMAU", "MAEU")
-  * code/sigle court du transporteur (ex: "MSC", "CMA CGM", "MAERSK")
-  * libellés de section spécifiques (ex: "BILL ISSUANCE", "PLACE OF RECEIPT")
-  * code interne unique (ex: numéro à 5 chiffres entre parenthèses comme "(15358)")
-- Casse-insensible — l'app fera .upper() pour comparer
-- L'app valide la présence d'au moins 60% des tokens (mode tolérant)
-
-is_scanned : true si le document est un scan (texte OCR avec fautes), false si c'est un PDF généré numériquement.
-"""
-
-
-# ── Template generation prompt (regex-based local parser recipe) ───────
-_TEMPLATE_INSTRUCTIONS = """Tu es un expert en rétro-ingénierie de manifestes maritimes.
-
-Je te donne le texte BRUT extrait par pdfplumber d'un document. Ta tâche : produire
-un TEMPLATE DE PARSING REGEX qui permettra à mon code Python d'extraire les mêmes
-informations LOCALEMENT (sans IA) lors des prochaines extractions de ce même format.
-
-Réponds en JSON STRICT, sans markdown :
-{
+  "signature_keywords": ["token1", "token2", "token3"],
+  "is_scanned": false,
+  "layout_analysis": "explique en 3-5 phrases comment tu vois le format dans l'image ET comment pdfplumber l'a converti en texte (col fusionnees ? ligne par ligne ? blocs ?). Cite des marqueurs concrets visibles dans le texte qui delimitent un BL et un conteneur.",
+  "extraction_strategy": "decris en 2-3 phrases l'algorithme exact que ton parse() va utiliser (split sur quoi, regex pour quoi, boucle imbriquee pour conteneurs ?).",
+  "shipowner": "valeur litterale (ex: MSC)",
   "header_field_patterns": {
-    "vessel":          "regex avec UN groupe capturé",
-    "voyage":          "regex avec UN groupe capturé",
-    "date_of_arrival": "regex avec UN groupe capturé"
-  },
-  "row_patterns": [
-    "regex avec GROUPES NOMMÉS (?P<bl_number>...) (?P<container_number>...) etc."
-  ],
-  "shipowner": "valeur littérale (ex: MSC)"
+    "vessel":          "regex avec UN groupe capture (...)",
+    "voyage":          "regex avec UN groupe capture (...)",
+    "date_of_arrival": "regex avec UN groupe capture (...)"
+  }
 }
+<<<END_JSON>>>
+<<<PYTHON>>>
+def parse(text: str) -> list:
+    rows = []
+    # ... ton code ici, utilise `re` directement (deja injecte, NE PAS importer) ...
+    return rows
+<<<END_PYTHON>>>
 
-RÈGLES STRICTES :
-1. row_patterns : chaque regex DOIT capturer une ligne typique de cargaison du document.
-   - Utilise les groupes nommés Python (?P<nom>...) avec ces noms uniquement :
-     bl_number, bl_type, container_number, container_type, weight, weight_unit,
-     pack_qty, pack_unit, volume, volume_unit, seal1, shipper, consignee,
-     port_of_loading, port_of_discharge, place_of_delivery, description.
-   - PAS de groupes anonymes (...) sans nom — seuls les groupes nommés sont conservés.
-   - Si la même info se répète sur plusieurs lignes (ex: BL puis conteneurs), donne
-     2-3 patterns distincts plutôt qu'un seul géant.
-   - Échappe correctement (\\d, \\s, \\(, etc.) — c'est du JSON donc DOUBLE backslash.
-   - Insensible à la casse (re.IGNORECASE est appliqué par le code).
-2. header_field_patterns : chaque regex doit avoir UN SEUL groupe capturé (...) qui isole
-   la valeur (sans le label). Le code prendra le premier match dans tout le document.
-3. Privilégie la SPÉCIFICITÉ : ancres sur des préfixes uniques (ex: ^MEDU\\d+ pour MSC,
-   ^[A-Z]{4}\\d{7} pour conteneur ISO).
-4. Si tu ne sais pas extraire un champ avec une regex fiable, OMETS-le — ne mets pas
-   un pattern hasardeux qui ferait du bruit.
+REGLES POUR LE BLOC PYTHON :
 
-Le code testera chaque ligne du PDF contre chaque pattern — le PREMIER qui matche
-sur une ligne donnée produit la sortie. Évite donc les patterns trop laxistes.
+1. Le code DOIT definir UNE fonction `def parse(text: str) -> list:` qui retourne
+   une liste de dictionnaires, UN par ligne de cargaison (un par BL si vrac,
+   un par CONTENEUR si conteneurise — typique : MSC, CMA-CGM).
+
+2. Modules : `re` est DEJA INJECTE dans le namespace. N'ECRIS AUCUN `import`,
+   pas meme `import re`. Tout `import` fera planter le sandbox.
+
+3. ECRIS DU PYTHON 100% VALIDE :
+   - Indentation 4 espaces.
+   - PAS de commentaires C-style /* ... */ — utilise `#`.
+   - PAS de typedict, PAS d'annotations exotiques.
+   - Pas de f-string complexe inutile.
+
+4. Cles AUTORISEES (utilise UNIQUEMENT celles-ci, n'invente RIEN d'autre) :
+   bl_number, bl_type, container_number, container_type,
+   weight, weight_unit, pack_qty, pack_unit, volume, volume_unit,
+   seal1, seal2, seal3, shipper, consignee, notify, freight_forwarder,
+   port_of_loading, port_of_discharge, place_of_delivery, place_of_acceptance,
+   description, page.
+
+5. STRATEGIE GAGNANTE pour les manifestes MULTI-LIGNES :
+   - Decoupe d'abord en BLOCS-PAR-BL avec un marqueur stable et UNIQUE
+     visible dans le texte (ex: 'SH:' debut de ligne, 'B/L NR.', 'BL Nr.',
+     prefixe armateur MEDU/CMAU/MAEU). Choisis le marqueur qui apparait
+     EXACTEMENT une fois par BL dans le texte reel.
+   - Pour chaque bloc, extrait les champs sur le bloc entier (pas ligne-par-ligne).
+   - PATTERN RECOMMANDE pour les conteneurs (quand le format utilise `CN:`):
+     ```python
+     cn_iter = list(re.finditer(r'CN:([A-Z]{4}\\d{7})', block))
+     for i, cm in enumerate(cn_iter):
+         cn_start = cm.start()
+         cn_end = cn_iter[i+1].start() if i+1 < len(cn_iter) else len(block)
+         cn_block = block[cn_start:cn_end]
+         container_number = cm.group(1)   # toujours juste, jamais de faux positif
+     ```
+     Si le format n'utilise pas `CN:`, cherche les conteneurs ISO directement
+     avec `re.finditer(r'\\b([A-Z]{4}\\d{7})\\b', block)` en filtrant les
+     resultats qui ressemblent a des numeros BL (ex: si len > 11 chars autour).
+
+6. PIEGES CONNUS pdfplumber :
+   - Les COLONNES sont souvent FUSIONNEES sur la meme ligne, separees par
+     des espaces multiples. Ne suppose PAS un layout 'label\\nvaleur'.
+   - Les en-tetes de colonne (ex: 'B/L NR.') matchent souvent ta regex AVANT
+     les vraies valeurs. Filtre-les explicitement (ex: skip si la valeur
+     capturee est 'NR.' ou un mot-cle, ou cherche au moins N caracteres).
+   - Les nombres peuvent contenir des virgules (ex: '22,754.000 kgs.'). 
+     Ta regex doit autoriser virgules ET points : `[\\d,]+\\.?\\d*`.
+   - ATTENTION AUX FAUX POSITIFS DE NUMEROS DE CONTENEUR : les numeros BL
+     (ex: MEDUJ4270495) contiennent des sous-chaines [A-Z]{4}\\d{7}
+     (ex: EDUJ4270495). N'utilise JAMAIS `[A-Z]{4}\\d{7}` seul pour trouver
+     un conteneur. Utilise TOUJOURS le prefixe `CN:` comme ancre :
+       cn_matches = list(re.finditer(r'CN:([A-Z]{4}\\d{7})', block))
+     ou, pour le premier conteneur inline sur la meme ligne que le BL :
+       re.search(r'CN:([A-Z]{4}\\d{7})', first_line)
+     Cette approche est robuste car le manifeste delimite toujours les
+     conteneurs avec le prefixe `CN:`.
+
+7. ROBUSTESSE :
+   - Tolerant aux espaces multiples (`\\s+`).
+   - Skippe silencieusement les blocs non-cargo (en-tetes, totaux, footers).
+   - Pas d'exception non rattrapee : enrobe les conversions float/int en
+     try/except si le pattern peut matcher du texte malforme.
+   - JAMAIS print(), open(), exec(), eval(), pas d'acces fichier/reseau.
+
+8. AUTO-VERIFICATION OBLIGATOIRE AVANT DE REPONDRE :
+   Mentalement, applique ton parse() sur le TEXTE (B) reel. Compte les BL
+   distincts visibles dans l'image (A). Ta fonction DOIT en produire AU
+   MOINS autant. Si ton premier jet donne 0, REPENSE l'approche depuis le
+   debut et recris parse(). Ne soumets JAMAIS un parse() qui rendrait 0
+   sur le texte fourni.
+
+[header_field_patterns]
+- UN SEUL groupe capture (...) par regex, qui isole la valeur sans le label.
+- Le code prend le premier match trouve dans tout le document.
+
+[signature_keywords]
+- 3 a 6 tokens TRES SPECIFIQUES presents dans CE document, 1-3 mots max chacun.
+- Evite les generiques : BL, VESSEL, CARGO, MANIFEST.
 """
-
 
 # ── Per-row correction prompt ──────────────────────────────────────────────
 _FIX_INSTRUCTIONS = """Tu es un expert en correction de données extraites de manifestes maritimes.
@@ -387,119 +444,239 @@ def _extract_one_chunk(
         )
 
 
-def learn_format_from_pdf(pdf_path: str | Path, *, cancel_check=None) -> Dict:
-    """Analyze a sample document, classify it AND extract an example.
+def _render_first_page_png(pdf_path: Path, dpi: int = 150) -> Optional[bytes]:
+    """Render page 1 of a PDF to PNG bytes for multimodal Gemini calls.
 
-    Returns a dict containing:
-      - format_name, carrier_name, signature_keywords, is_scanned, extraction_hints
-      - example_rows : list of rows the AI extracted from THIS document
-      - sample_text : first 4000 chars of source text (for few-shot at re-use)
-
-    The caller saves it via format_registry.save_learned() — those example_rows
-    will then be injected into future extraction prompts as a few-shot reference,
-    making subsequent extractions of the same format much more reliable
-    (and effectively the « learned extractor » that no longer needs guessing).
+    Returns None if rendering fails (Gemini call falls back to text-only).
     """
+    try:
+        from pdf2image import convert_from_path
+        from ..paths import poppler_bin
+        import io as _io
+        images = convert_from_path(
+            str(pdf_path),
+            dpi=dpi,
+            poppler_path=poppler_bin(),
+            fmt="png",
+            first_page=1,
+            last_page=1,
+        )
+        if not images:
+            return None
+        buf = _io.BytesIO()
+        images[0].save(buf, format="PNG", optimize=True)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
+def learn_format_from_pdf(pdf_path: str | Path, *, cancel_check=None) -> Dict:
+    """Learn a manifest format from a sample PDF using ONE Gemini call.
+
+    Sends BOTH the pdfplumber text AND a rendered image of page 1 to
+    gemini-2.5-pro (with thinking enabled) so the model can correlate
+    spatial layout with the actual text its parser will receive.
+
+    Validates by compiling AND running it locally; retries once with
+    feedback if it fails or returns 0 rows.
+    """
+    from .template_parser import run_parse_code
+
     pdf_path = Path(pdf_path)
     _check_cancel(cancel_check)
-    text = _read_pdf_text(pdf_path, max_pages=2)
+    text = _read_pdf_text(pdf_path, max_pages=6)
     if len(text.strip()) < 200:
-        # Scanned — OCR first 2 pages only via Vision (keep cost low)
-        text = vision_client.ocr_pdf(pdf_path, max_pages=2, cancel_check=cancel_check)
+        text = vision_client.ocr_pdf(pdf_path, max_pages=4, cancel_check=cancel_check)
 
-    # ── Steps 1, 2 & 3 run in PARALLEL ────────────────────────────
-    # Step 1: classify format  |  Step 2: extract example rows  |  Step 3: regex template
-    _check_cancel(cancel_check)
+    sample = text[:14000]
+    # Full document text used to VALIDATE the generated parser (not sent to AI).
+    # If 0 rows on the full doc, the parser is useless even if it "compiles".
+    try:
+        full_text = _read_pdf_text(pdf_path, max_pages=None)
+    except Exception:
+        full_text = text
+    if len(full_text.strip()) < len(text.strip()):
+        full_text = text
 
-    classify_prompt = (
-        _LEARN_INSTRUCTIONS
-        + "\n\n--- DÉBUT DU MANIFESTE ---\n" + text[:10000] + "\n--- FIN ---"
-    )
+    # Render page 1 as PNG for multimodal context (so Gemini SEES the layout).
+    page1_png = _render_first_page_png(pdf_path)
 
-    def _task_classify() -> Dict:
-        raw_cls = ""
-        cls_parsed: Dict = {}
+    def _split_response(raw: str) -> tuple[Dict, str]:
+        """Split AI response into (metadata_dict, python_code).
+
+        Tolerates missing closing markers, missing JSON markers, or markdown
+        code fences. Returns ({}, "") if nothing parseable found.
+        """
+        meta: Dict = {}
+        code = ""
+        if not raw:
+            return meta, code
+        # JSON block
+        m_json = re.search(
+            r"<<<JSON>>>\s*(\{[\s\S]*?\})\s*(?:<<<END_JSON>>>|<<<PYTHON>>>|$)",
+            raw,
+        )
+        if m_json:
+            try:
+                meta = json.loads(m_json.group(1))
+            except Exception:
+                # try a relaxed fallback: find the largest balanced {...}
+                meta = _parse_json(m_json.group(1)) or {}
+        else:
+            # fallback: response is pure JSON (legacy)
+            meta = _parse_json(raw) or {}
+
+        # PYTHON block
+        m_py = re.search(
+            r"<<<PYTHON>>>\s*(?:```(?:python)?\s*)?([\s\S]*?)(?:```\s*)?<<<END_PYTHON>>>",
+            raw,
+        )
+        if not m_py:
+            # fallback: any text after the marker until end
+            m_py = re.search(r"<<<PYTHON>>>\s*(?:```(?:python)?\s*)?([\s\S]+?)$", raw)
+        if m_py:
+            code = m_py.group(1).strip()
+            # strip trailing ``` if model added markdown fence
+            code = re.sub(r"\s*```\s*$", "", code).strip()
+        return meta, code
+
+    def _validate_code(code: str) -> tuple[bool, int, str]:
+        """Compile + run on FULL document. Returns (compiles_ok, n_rows, error).
+
+        - compiles_ok=False if SyntaxError (truly broken Python).
+        - n_rows: rows produced on the full PDF text.
+        - error: short reason ("syntax", "no_parse_fn", "runtime", "zero_rows", "").
+        """
+        if not code or "def parse" not in code:
+            return False, 0, "no_parse_fn"
+        try:
+            compile(code, "<learned_parser>", "exec")
+        except SyntaxError:
+            return False, 0, "syntax"
+        rows = run_parse_code(code, full_text)
+        if not rows:
+            return True, 0, "zero_rows"
+        return True, len(rows), ""
+
+    def _ask(extra_feedback: str = "") -> tuple[Dict, str, str]:
+        prompt = (
+            _LEARN_COMBINED_INSTRUCTIONS
+            + extra_feedback
+            + "\n\n--- TEXTE DU MANIFESTE (extrait par pdfplumber, multi-pages) ---\n"
+            + sample
+            + "\n--- FIN TEXTE ---\n"
+            + ("\n(L'IMAGE de la page 1 est jointe ci-dessus pour le contexte spatial.)\n"
+               if page1_png else "")
+        )
+        raw = ""
+        meta: Dict = {}
+        code = ""
         err = ""
         try:
             resp = generate_with_fallback(
-                classify_prompt,
+                prompt,
                 generation_config={
-                    "response_mime_type": "application/json",
+                    # plain text now: we use our own delimiters
                     "temperature": 0.0,
+                    "max_output_tokens": 16384,
+                    # Pro reasoning: keep thinking ON for hard layout analysis
+                    "enable_thinking": True,
                 },
+                # Force the most powerful model for learning — this is a
+                # one-shot per format (then cached forever), so cost is OK.
+                primary="gemini-2.5-pro",
+                image_bytes=page1_png,
             )
-            raw_cls = getattr(resp, "text", "") or ""
-            cls_parsed = _parse_json(raw_cls) or {}
+            raw = getattr(resp, "text", "") or ""
+            meta, code = _split_response(raw)
         except Exception as e:
             err = str(e)
             raise
         finally:
             debug_log.log_call(
                 kind="learn", source_file=str(pdf_path),
-                prompt=classify_prompt, raw_response=raw_cls,
-                parsed=cls_parsed, error=err,
+                prompt=prompt, raw_response=raw,
+                parsed={"meta": meta, "code_chars": len(code)},
+                error=err,
+                extra={"image_attached": bool(page1_png)},
             )
-        return cls_parsed
+        return meta, code, raw
 
-    def _task_example() -> List[Dict]:
-        try:
-            return extract_rows_from_text(text, source_file=str(pdf_path), extra_hints="")
-        except Exception:
-            return []
+    meta, code, _raw = _ask()
+    _check_cancel(cancel_check)
+    ok, n_rows, why = _validate_code(code)
 
-    def _task_template() -> Dict:
-        return _learn_parse_template(text, source_file=str(pdf_path))
-
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        f_classify = pool.submit(_task_classify)
-        f_example  = pool.submit(_task_example)
-        f_template = pool.submit(_task_template)
-
-        # Wait for classify first (raises on error → whole learn fails cleanly)
-        cls_parsed   = f_classify.result()
+    # Retry once if the parser is unusable (syntax error OR 0 rows on the FULL
+    # document). 0 rows on the full PDF is a real failure -- the parser is
+    # useless. We give the AI specific feedback to fix it.
+    if not ok or n_rows == 0:
+        if why == "syntax":
+            feedback = (
+                "\n\nFEEDBACK CRITIQUE : ta fonction parse() ne COMPILE PAS "
+                "(SyntaxError). Re-ecris-la entierement en PYTHON STRICT "
+                "(pas de /* */, pas de typedict, uniquement re)."
+            )
+        else:
+            # Show the AI a concrete first BL block from the actual document
+            # so it can SEE the real layout (pdfplumber may break lines
+            # differently than the AI assumed).
+            snippet = full_text[:3500]
+            feedback = (
+                "\n\nFEEDBACK CRITIQUE : ta fonction parse() a retourne "
+                "0 ligne quand on l'execute sur le DOCUMENT COMPLET "
+                "(plusieurs pages, pas seulement l'echantillon).\n\n"
+                "Cause probable : tes regex supposent une mise en page "
+                "(ex: label\\nvaleur) qui ne correspond pas au texte reel "
+                "extrait par pdfplumber.\n\n"
+                "Voici le DEBUT REEL du texte tel que pdfplumber le voit "
+                "(adapte tes regex a CE format exact, attention aux espaces "
+                "vs sauts de ligne) :\n"
+                "----- DEBUT TEXTE REEL -----\n"
+                + snippet
+                + "\n----- FIN TEXTE REEL -----\n\n"
+                "RE-ECRIS parse() de zero. Ta nouvelle version DOIT extraire "
+                "au moins les lignes visibles dans ce snippet (au minimum "
+                "les BL identifiables par 'SH:' ou 'B/L NR.')."
+            )
         _check_cancel(cancel_check)
-        example_rows = f_example.result()
-        _check_cancel(cancel_check)
-        parse_template = f_template.result()
+        meta2, code2, _ = _ask(feedback)
+        ok2, n_rows2, _ = _validate_code(code2)
+        # Accept retry if it's strictly better
+        if ok2 and n_rows2 > n_rows:
+            meta = meta2 or meta
+            code = code2
+            n_rows = n_rows2
+            ok = True
 
-    cls_parsed["example_rows"] = example_rows
-    cls_parsed["sample_text"]  = text[:4000]
-    if parse_template:
-        cls_parsed["parse_template"] = parse_template
-    return cls_parsed
-
-
-def _learn_parse_template(text: str, *, source_file: str) -> Dict:
-    """Ask Gemini for a regex-based parse template. Returns {} on failure."""
-    prompt = (
-        _TEMPLATE_INSTRUCTIONS
-        + "\n\n--- TEXTE DU MANIFESTE (échantillon) ---\n"
-        + text[:12000]
-        + "\n--- FIN ---\n\nJSON :"
-    )
-    raw = ""
-    parsed: Dict = {}
-    err = ""
-    try:
-        resp = generate_with_fallback(
-            prompt,
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.0,
-            },
-        )
-        raw = getattr(resp, "text", "") or ""
-        out = _parse_json(raw)
-        if isinstance(out, dict):
-            parsed = out
-    except Exception as e:
-        err = str(e)
-    finally:
-        debug_log.log_call(
-            kind="learn_template", source_file=source_file,
-            prompt=prompt, raw_response=raw, parsed=parsed, error=err,
-        )
+    parsed: Dict = dict(meta or {})
+    parsed["parse_template"] = {
+        "header_field_patterns": (meta or {}).get("header_field_patterns") or {},
+        # Save the code only if it actually produces rows on the full doc.
+        # An empty parse_code triggers the "no local parser" UX rather than
+        # silently saving a useless one.
+        "parse_code": code if (ok and n_rows > 0) else "",
+        "shipowner": (meta or {}).get("shipowner") or "",
+        "row_count": n_rows,          # persisted so save_learned can compare
+    }
+    parsed["sample_text"] = text[:4000]
+    parsed.setdefault("example_rows", [])
+    parsed["_local_row_count_on_sample"] = n_rows
     return parsed
+
+
+def _count_template_matches(template: Dict, text: str) -> int:
+    """Count lines of `text` that match at least one row_pattern in template."""
+    if not template or not isinstance(template, dict):
+        return 0
+    compiled = []
+    for pat in template.get("row_patterns") or []:
+        try:
+            compiled.append(re.compile(pat, re.IGNORECASE))
+        except re.error:
+            continue
+    if not compiled:
+        return 0
+    return sum(1 for line in text.splitlines() if any(rx.search(line) for rx in compiled))
 
 
 def ai_fix_row(row: Dict, issues: List[str], context: str = "") -> Dict:
@@ -519,6 +696,7 @@ def ai_fix_row(row: Dict, issues: List[str], context: str = "") -> Dict:
         generation_config={
             "response_mime_type": "application/json",
             "temperature": 0.1,
+            "max_output_tokens": 2048,   # fix_row = single row JSON
         },
     )
     fixed = _parse_json(resp.text)

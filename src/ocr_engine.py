@@ -98,13 +98,13 @@ class OCREngine:
         self,
         file_path: str | Path,
         max_pages: int | None = None,
+        first_page: int = 1,
     ) -> List[Page]:
         """Render pages to PNG (preprocessed). Does NOT OCR yet.
 
-        If ``max_pages`` is given (e.g. 1 for a quick preview), only that
-        many pages are rendered. The remaining pages can be lazily rendered
-        later, but the typical use is "manifest mode" where the state-machine
-        parser does its own pdfplumber pass and we only need a thumbnail.
+        ``first_page`` (1-based) lets callers render a range: e.g.
+        first_page=2, max_pages=5 renders pages 2-6 with correct 0-based
+        indices (1..5).  Used for progressive background loading.
         """
         file_path = Path(file_path)
         suffix = file_path.suffix.lower()
@@ -116,9 +116,9 @@ class OCREngine:
             kwargs = {"dpi": self.dpi}
             if self.poppler_path:
                 kwargs["poppler_path"] = self.poppler_path
+            kwargs["first_page"] = first_page
             if max_pages is not None:
-                kwargs["first_page"] = 1
-                kwargs["last_page"] = max_pages
+                kwargs["last_page"] = first_page + max_pages - 1
             images = convert_from_path(str(file_path), **kwargs)
         elif suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}:
             images = [Image.open(file_path).convert("RGB")]
@@ -127,8 +127,9 @@ class OCREngine:
 
         pages: List[Page] = []
         for i, img in enumerate(images):
-            img_path = cache_dir / f"page_{i + 1}.png"
-            crop_path = cache_dir / f"page_{i + 1}.crop"
+            page_idx = first_page - 1 + i   # 0-based absolute index
+            img_path = cache_dir / f"page_{page_idx + 1}.png"
+            crop_path = cache_dir / f"page_{page_idx + 1}.crop"
             if not img_path.exists():
                 img = self._auto_rotate(img)
                 img = self._preprocess_for_display(img)
@@ -146,7 +147,7 @@ class OCREngine:
                 else:
                     cx = cy = 0; cw = img.width; ch = img.height
             pages.append(Page(
-                index=i,
+                index=page_idx,
                 image_path=img_path,
                 width=img.width,
                 height=img.height,

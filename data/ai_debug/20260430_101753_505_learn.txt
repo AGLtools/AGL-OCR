@@ -1,0 +1,254 @@
+=== AI DEBUG LOG — LEARN ===
+Timestamp : 2026-04-30T10:17:53
+Source    : C:\Users\m.taleb\Downloads\MSC GEMMA GT601E IMP.pdf
+
+--- PROMPT SENT (12060 chars) ---
+Tu es un expert en retro-ingenierie de manifestes maritimes.
+
+Je te donne le texte BRUT (multi-pages, extrait par pdfplumber) d'un manifeste de
+cargaison. Ta mission : produire UN SEUL JSON qui classifie le format ET fournit
+une FONCTION PYTHON `parse(text)` capable d'extraire toutes les lignes de cargaison
+de ce format LOCALEMENT (sans IA) lors des prochains documents identiques.
+
+REPONDS EN JSON STRICT (sans markdown) :
+{
+  "format_name": "nom court en MAJUSCULES (ex: MSC, CMA_CGM, MAERSK)",
+  "carrier_name": "nom complet du transporteur",
+  "signature_keywords": ["token1", "token2", "token3"],
+  "is_scanned": false,
+  "extraction_hints": "particularites notables (mise en page, pieges)",
+  "shipowner": "valeur litterale (ex: MSC)",
+  "header_field_patterns": {
+    "vessel":          "regex avec UN groupe capture (...)",
+    "voyage":          "regex avec UN groupe capture (...)",
+    "date_of_arrival": "regex avec UN groupe capture (...)"
+  },
+    "parse_code_b64": "BASE64_UTF8_DU_CODE_PYTHON_PARSE",
+    "parse_code": "(optionnel) code Python en clair, seulement si parfaitement échappé JSON"
+}
+
+REGLES POUR `parse_code_b64` -- LE PLUS IMPORTANT :
+
+1. Le code DOIT definir UNE fonction `def parse(text: str) -> list[dict]:`
+   qui retourne une liste de dictionnaires, UN par ligne de cargaison (un par BL,
+   ou un par conteneur d'un BL si chaque conteneur est une ligne distincte).
+
+2. Modules autorises : SEULEMENT `re` (deja disponible dans l'environnement).
+   N'utilise AUCUN autre import (pas de pandas, pas de json, pas de os).
+
+2bis. IMPORTANT JSON/ESCAPING :
+    - Retourne le code PRINCIPALEMENT dans `parse_code_b64` (base64 utf-8 du script).
+    - `parse_code` est facultatif. Si tu le fournis, il doit etre parfaitement
+      echappe JSON (sinon il sera ignore).
+
+3. Cles de dictionnaire AUTORISEES (utilise UNIQUEMENT celles-ci) :
+   bl_number, bl_type, container_number, container_type,
+   weight, weight_unit, pack_qty, pack_unit, volume, volume_unit,
+   seal1, seal2, seal3, shipper, consignee, notify, freight_forwarder,
+   port_of_loading, port_of_discharge, place_of_delivery, place_of_acceptance,
+   description, page.
+   N'invente AUCUNE autre cle.
+
+4. STRATEGIE pour les manifestes MULTI-LIGNES (cas courant : MSC, CMA-CGM...) :
+   - Decoupe d'abord le texte en BLOCS-PAR-BL : utilise un marqueur stable
+     (ex: une ligne contenant 'B/L NR', 'BL NUMBER', un prefixe de num BL
+     comme MEDU/CMAU/MAEU) comme separateur de bloc.
+   - Pour chaque bloc, extrait les champs (BL, shipper, consignee, ports,
+     weights, etc.) avec des regex/recherches sur le bloc entier (pas
+     ligne-par-ligne).
+   - Si un bloc contient PLUSIEURS conteneurs (lignes 'CN:'), genere UN dict
+     par conteneur, chacun heritant des champs communs du BL.
+
+5. ROBUSTESSE :
+   - Sois tolerant aux variations d'espaces (utilise \s+).
+   - Skippe silencieusement les blocs qui ne ressemblent pas a une ligne de cargo
+     (en-tetes, pieds de page, totaux generaux).
+   - N'utilise JAMAIS print(), open(), exec(), eval(), ni acces fichier/reseau.
+
+6. AUTO-VERIFICATION OBLIGATOIRE avant de repondre :
+   Mentalement, applique ta fonction parse() sur l'echantillon fourni. Compte
+   le nombre de BL distincts visibles dans le texte. Ta fonction DOIT en
+   produire au moins autant. Si elle en produit 0, RECRIS-LA depuis zero.
+
+[header_field_patterns]
+- UN SEUL groupe capture (...) par regex, qui isole la valeur sans le label.
+- Le code prend le premier match trouve dans tout le document.
+
+[signature_keywords]
+- 3 a 6 tokens TRES SPECIFIQUES presents dans CE document, 1-3 mots max chacun.
+- Pas de phrases longues (les PDF eclatent le texte sur plusieurs colonnes).
+- Evite les generiques : BL, VESSEL, CARGO, MANIFEST.
+
+
+--- TEXTE DU MANIFESTE (echantillon multi-pages) ---
+MEDITERRANEAN DEPARTURE DATE Page 1 of 90
+SHIPPING COMPANY 05 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: DAMIETTA
+Abidjan, , CI Liberia JEDDAH 02, ABIDJAN (not required in U.S.)
+SAUDI ARABIA
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRS. (MN) 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+SH: MEDUFF255394 CN:MSBU7058080 40' HIGH CUBE
+AL-SHARQ FLEXIBLE
+R836250900017
+PACKAGING FACTORIES SN: F119627
+65
+Tare Weight: 3,700
+New Industrial Area Al kharaj Road
+kgs.
+Riyadh
+24 PALLET(S) of METALIZED 22754.00kgs.
+11411
+Riyadh, Saudi Arabia 11411 CPP AND TRANSPARENT CPP NO. 50163.98lbs.
+Phone No : +966552374272 OF PALLETS: 24 PALLETS GROSS
+Fax No : +23296612651804 WEIGHT: 22754.00 KGS NET
+WEIGHT: 21893.74 KGS FREIGHT
+CO:
+PREPAID
+FLEXIBLE PACKAGING COTE D
+IVOIRE (FLEPACI)
+ZONE INDUSTRIELLE DE Harmonized Code: 392119
+YOPOUGON05 BP 1753 ABIDJAN
+05
+Abidjan
+Total No. of containers: 1x40' HIGH CUBE
+NF: Total on this bill of lading: 24 PALLET(S) packages 22,754.00kgs.
+FLEXIBLE PACKAGING COTE D
+IVOIRE (FLEPACI)
+ZONE INDUSTRIELLE DE
+YOPOUGON05 BP 1753 ABIDJAN
+05
+Abidjan
+Phone No : +2250707016009
+Fax No : +2252723519014
+EW:
+
+MEDITERRANEAN DEPARTURE DATE Page 2 of 90
+SHIPPING COMPANY 07 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: VALENCIA
+Abidjan, , CI Liberia KING ABDULLAH ABIDJAN (not required in U.S.)
+PORT 02, SAUDI
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRSA. (RMNA) BIA 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+SH: MEDUJ4270495 CN:CARU5744750 40' DRY VAN EXPRESS RELEASE
+SAUDI BASIC INDUSTRIES
+25-780GAC
+CORPORATION SN: 1354072
+Saudi Basic Industries Corporation Tare Weight: 3,690
+(SABIC)
+kgs.
+Airport Branch Rd Qurtubah District
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+5101
+57287.12lbs.
+Riyadh, Saudi Arabia 11422
+Phone No : +9660112259918 Harmonized Code: 390210
+Fax No : +9660112258210
+CO:
+COTIPLAST
+Total No. of containers: 1x40' DRY VAN
+ZONE INDUSTRIELLE DE
+CN:TRHU6549759 40' HIGH CUBE
+YOPOUGON
+01 BP 615 ABIDJAN 01
+SN: 1354168
+Abidjan
+Tare Weight: 3,700
+kgs.
+NF: 1020 BAG(S) of PP 506P 249 25985.00kgs.
+COTIPLAST 57287.12lbs.
+Harmonized Code: 390210
+ZONE INDUSTRIELLE DE
+YOPOUGON
+01 BP 615 ABIDJAN 01
+Abidjan
+Phone No : +2252723467135 CN:MSMU7784997 40' HIGH CUBE
+Fax No : +2252723467323
+SN: 1354171
+Tare Weight: 3,840
+kgs.
+EW: 1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:MSMU4928299 40' HIGH CUBE
+SN: 1354087
+Tare Weight: 3,840
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+
+MEDITERRANEAN DEPARTURE DATE Page 3 of 90
+SHIPPING COMPANY 07 Jan 2026 CARGO MANIFEST
+S.A., Geneva 1a.- NAME OF SHIP 1b.-VOYAGE Date Of Arrival at Port of Discharge
+MSC GEMMA (15358) GT601E 31 Jan 2026
+BILL ISSUANCE 3.- NATIONALITY OF SHIP PLACE OF RECEIPT 5a. PORT OF LOADING 5b. PORT OF DISCHARGE FINAL DESTINATION Transshipment: VALENCIA
+Abidjan, , CI Liberia KING ABDULLAH ABIDJAN (not required in U.S.)
+PORT 02, SAUDI
+SHIPPER (SH); CONSIGNEE(CO); B/L NR. 6.- MARKS AND NRSA. (RMNA) BIA 7.- NUMBER AND KIND OF PACKAGES; (ANSWER COL. 8 OR COL. 9)
+NOTIFY ADDRESS(NF) CONTAINER NRS. (CN) SEAL DESCRIPTION OF GOODS 8 -GROSS WEIGHT 9 - MEASURMENT
+Service Contract NRS. (SN) (LB. OR KG.) (PER TEUS)
+CN:TGBU7253449 40' HIGH CUBE
+SN: 1354912
+Tare Weight: 3,700
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+57287.12lbs.
+Harmonized Code: 390210
+CN:MSDU6697232 40' HIGH CUBE
+SN: 1351220
+Tare Weight: 3,700
+kgs.
+1020 BAG(S) of PP 506P 249 25985.00kgs.
+5
+... (4060 more chars truncated)
+
+--- RAW RESPONSE (10860 chars) ---
+{
+  "format_name": "MSC_CARGO_MANIFEST",
+  "carrier_name": "MEDITERRANEAN SHIPPING COMPANY S.A.",
+  "signature_keywords": [
+    "MEDITERRANEAN SHIPPING COMPANY",
+    "CARGO MANIFEST",
+    "B/L NR.",
+    "CONTAINER NRS. (CN)"
+  ],
+  "is_scanned": false,
+  "extraction_hints": "Multi-page document. BLs can span multiple pages. Container details are listed under each BL, potentially multiple containers per BL. Shipper, Consignee, Notify are grouped together. Gross weight and measurement are in separate columns.",
+  "shipowner": "MSC",
+  "header_field_patterns": {
+    "vessel": "NAME OF SHIP\\s*\\n\\s*([A-Z0-9\\s]+?)\\s*\\(",
+    "voyage": "VOYAGE\\s*\\n\\s*([A-Z0-9]+)",
+    "date_of_arrival": "Date Of Arrival at Port of Discharge\\s*\\n\\s*(\\d{2}\\s[A-Za-z]{3}\\s\\d{4})"
+  },
+  "parse_code_b64": "import re\n\ndef parse(text: str) -> list[dict]:\n    cargo_lines = []\n\n    # Split the document into potential BL blocks\n    # A new BL block starts with 'SH:' or 'B/L NR.' followed by a BL number pattern\n    bl_blocks = re.split(r'(?=\\n\\s*SH:\\s*|\\n\\s*B/L NR\\.\\s*\\d)', text, flags=re.IGNORECASE)\n\n    # Extract header fields once from the first part of the document\n    vessel_match = re.search(r'NAME OF SHIP\\s*\\n\\s*([A-Z0-9\\s]+?)\\s*\\(', text)\n    vessel = vessel_match.group(1).strip() if vessel_match else None\n\n    voyage_match = re.search(r'VOYAGE\\s*\\n\\s*([A-Z0-9]+)', text)\n    voyage = voyage_match.group(1).strip() if voyage_match else None\n\n    date_of_arrival_match = re.search(r'Date Of Arrival at Port of Discharge\\s*\\n\\s*(\\d{2}\\s[A-Za-z]{3}\\s\\d{4})', text)\n    date_of_arrival = date_of_arrival_match.group(1).strip() if date_of_arrival_match else None\n\n    # Process each BL block\n    for block in bl_blocks:\n        if not block.strip():\n            continue\n\n        # Try to find a B/L number to confirm it's a cargo block\n        bl_number_match = re.search(r'B/L NR\\.\\s*([A-Z0-9]+)', block)\n        if not bl_number_match:\n            # If no BL number, it might be a continuation of the previous BL's containers\n            # or just header/footer info. Skip for now, will handle containers separately.\n            continue\n\n        bl_number = bl_number_match.group(1).strip()\n\n        # Extract common BL fields\n        shipper_match = re.search(r'SH:\\s*(.*?)(?=\\n\\s*CO:|$)', block, re.DOTALL)\n        shipper = shipper_match.group(1).strip() if shipper_match else None\n\n        consignee_match = re.search(r'CO:\\s*(.*?)(?=\\n\\s*NF:|$)', block, re.DOTALL)\n        consignee = consignee_match.group(1).strip() if consignee_match else None\n\n        notify_match = re.search(r'NF:\\s*(.*?)(?=\\n\\s*EW:|$|Total No\\. of containers:)', block, re.DOTALL)\n        notify = notify_match.group(1).strip() if notify_match else None\n\n        pol_match = re.search(r'5a\\. PORT OF LOADING\\s*\\n\\s*(.*?)(?=\\s*5b\\. PORT OF DISCHARGE)', block, re.DOTALL)\n        port_of_loading = pol_match.group(1).strip() if pol_match else None\n\n        pod_match = re.search(r'5b\\. PORT OF DISCHARGE\\s*\\n\\s*(.*?)(?=\\s*FINAL DESTINATION)', block, re.DOTALL)\n        port_of_discharge = pod_match.group(1).strip() if pod_match else None\n\n        delivery_match = re.search(r'FINAL DESTINATION\\s*\\n\\s*(.*?)(?=\\s*Transshipment:|$)', block, re.DOTALL)\n        place_of_delivery = delivery_match.group(1).strip() if delivery_match else None\n\n        # Extract container details within the current BL block\n        container_lines = re.findall(r'(CN:([A-Z]{4}\\d{7})\\s*(.*?)(?:\\n|$)((?:(?!CN:)[\\s\\S])*?)(?=(?:CN:|$|Total No\\. of containers:)))', block, re.DOTALL)\n\n        if not container_lines:\n            # Handle cases where there's a BL but no explicit CN: line, maybe a single container implied\n            # This specific format seems to always have CN: for containers\n            pass\n\n        for cn_match in container_lines:\n            container_number = cn_match[1].strip()\n            container_type = cn_match[2].strip()\n            container_details_text = cn_match[3]\n\n            # Extract description, weight, and pack details from container_details_text\n            description_match = re.search(r'\\d+\\s*(?:PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))\\s*of\\s*(.*?)(?=\\s*Harmonized Code:|$|GROSS WEIGHT:)', container_details_text, re.DOTALL | re.IGNORECASE)\n            description = description_match.group(1).strip() if description_match else None\n\n            weight_match = re.search(r'(\\d+\\.\\d{2})\\s*(kgs|lbs)\\.', container_details_text, re.IGNORECASE)\n            weight = float(weight_match.group(1)) if weight_match else None\n            weight_unit = weight_match.group(2).lower() if weight_match else None\n\n            pack_qty_match = re.search(r'(\\d+)\\s*(PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))', container_details_text, re.IGNORECASE)\n            pack_qty = int(pack_qty_match.group(1)) if pack_qty_match else None\n            pack_unit = pack_qty_match.group(2).replace('(S)', '').lower() if pack_qty_match else None\n\n            cargo_line = {\n                'bl_number': bl_number,\n                'container_number': container_number,\n                'container_type': container_type,\n                'shipper': shipper,\n                'consignee': consignee,\n                'notify': notify,\n                'port_of_loading': port_of_loading,\n                'port_of_discharge': port_of_discharge,\n                'place_of_delivery': place_of_delivery,\n                'description': description,\n                'weight': weight,\n                'weight_unit': weight_unit,\n                'pack_qty': pack_qty,\n                'pack_unit': pack_unit\n            }\n            cargo_lines.append(cargo_line)\n\n    return cargo_lines\n",
+  "parse_code": "import re\n\ndef parse(text: str) -> list[dict]:\n    cargo_lines = []\n\n    # Split the document into potential BL blocks\n    # A new BL block starts with 'SH:' or 'B/L NR.' followed by a BL number pattern\n    bl_blocks = re.split(r'(?=\\n\\s*SH:\\s*|\\n\\s*B/L NR\\.\\s*\\d)', text, flags=re.IGNORECASE)\n\n    # Extract header fields once from the first part of the document\n    vessel_match = re.search(r'NAME OF SHIP\\s*\\n\\s*([A-Z0-9\\s]+?)\\s*\\(', text)\n    vessel = vessel_match.group(1).strip() if vessel_match else None\n\n    voyage_match = re.search(r'VOYAGE\\s*\\n\\s*([A-Z0-9]+)', text)\n    voyage = voyage_match.group(1).strip() if voyage_match else None\n\n    date_of_arrival_match = re.search(r'Date Of Arrival at Port of Discharge\\s*\\n\\s*(\\d{2}\\s[A-Za-z]{3}\\s\\d{4})', text)\n    date_of_arrival = date_of_arrival_match.group(1).strip() if date_of_arrival_match else None\n\n    # Process each BL block\n    for block in bl_blocks:\n        if not block.strip():\n            continue\n\n        # Try to find a B/L number to confirm it's a cargo block\n        bl_number_match = re.search(r'B/L NR\\.\\s*([A-Z0-9]+)', block)\n        if not bl_number_match:\n            # If no BL number, it might be a continuation of the previous BL's containers\n            # or just header/footer info. Skip for now, will handle containers separately.\n            continue\n\n        bl_number = bl_number_match.group(1).strip()\n\n        # Extract common BL fields\n        shipper_match = re.search(r'SH:\\s*(.*?)(?=\\n\\s*CO:|$)', block, re.DOTALL)\n        shipper = shipper_match.group(1).strip() if shipper_match else None\n\n        consignee_match = re.search(r'CO:\\s*(.*?)(?=\\n\\s*NF:|$)', block, re.DOTALL)\n        consignee = consignee_match.group(1).strip() if consignee_match else None\n\n        notify_match = re.search(r'NF:\\s*(.*?)(?=\\n\\s*EW:|$|Total No\\. of containers:)', block, re.DOTALL)\n        notify = notify_match.group(1).strip() if notify_match else None\n\n        pol_match = re.search(r'5a\\. PORT OF LOADING\\s*\\n\\s*(.*?)(?=\\s*5b\\. PORT OF DISCHARGE)', block, re.DOTALL)\n        port_of_loading = pol_match.group(1).strip() if pol_match else None\n\n        pod_match = re.search(r'5b\\. PORT OF DISCHARGE\\s*\\n\\s*(.*?)(?=\\s*FINAL DESTINATION)', block, re.DOTALL)\n        port_of_discharge = pod_match.group(1).strip() if pod_match else None\n\n        delivery_match = re.search(r'FINAL DESTINATION\\s*\\n\\s*(.*?)(?=\\s*Transshipment:|$)', block, re.DOTALL)\n        place_of_delivery = delivery_match.group(1).strip() if delivery_match else None\n\n        # Extract container details within the current BL block\n        container_lines = re.findall(r'(CN:([A-Z]{4}\\d{7})\\s*(.*?)(?:\\n|$)((?:(?!CN:)[\\s\\S])*?)(?=(?:CN:|$|Total No\\. of containers:)))', block, re.DOTALL)\n\n        if not container_lines:\n            # Handle cases where there's a BL but no explicit CN: line, maybe a single container implied\n            # This specific format seems to always have CN: for containers\n            pass\n\n        for cn_match in container_lines:\n            container_number = cn_match[1].strip()\n            container_type = cn_match[2].strip()\n            container_details_text = cn_match[3]\n\n            # Extract description, weight, and pack details from container_details_text\n            description_match = re.search(r'\\d+\\s*(?:PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))\\s*of\\s*(.*?)(?=\\s*Harmonized Code:|$|GROSS WEIGHT:)', container_details_text, re.DOTALL | re.IGNORECASE)\n            description = description_match.group(1).strip() if description_match else None\n\n            weight_match = re.search(r'(\\d+\\.\\d{2})\\s*(kgs|lbs)\\.', container_details_text, re.IGNORECASE)\n            weight = float(weight_match.group(1)) if weight_match else None\n            weight_unit = weight_match.group(2).lower() if weight_match else None\n\n            pack_qty_match = re.search(r'(\\d+)\\s*(PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))', container_details_text, re.IGNORECASE)\n            pack_qty = int(pack_qty_match.group(1)) if pack_qty_match else None\n            pack_unit = pack_qty_match.group(2).replace('(S)', '').lower() if pack_qty_match else None\n\n            cargo_line = {\n                'bl_number': bl_number,\n                'container_number': container_number,\n                'container_type': container_type,\n                'shipper': shipper,\n                'consignee': consignee,\n                'notify': notify,\n                'port_of_loading': port_of_loading,\n                'port_of_discharge': port_of_discharge,\n                'place_of_delivery': place_of_delivery,\n                'description': description,\n                'weight': weight,\n                'weight_unit': weight_unit,\n                'pack_qty': pack_qty,\n                'pack_unit': pack_unit\n            }\n            cargo_lines.append(cargo_line)\n\n    return cargo_lines\n"
+}
+
+--- PARSED ---
+{
+  "format_name": "MSC_CARGO_MANIFEST",
+  "carrier_name": "MEDITERRANEAN SHIPPING COMPANY S.A.",
+  "signature_keywords": [
+    "MEDITERRANEAN SHIPPING COMPANY",
+    "CARGO MANIFEST",
+    "B/L NR.",
+    "CONTAINER NRS. (CN)"
+  ],
+  "is_scanned": false,
+  "extraction_hints": "Multi-page document. BLs can span multiple pages. Container details are listed under each BL, potentially multiple containers per BL. Shipper, Consignee, Notify are grouped together. Gross weight and measurement are in separate columns.",
+  "shipowner": "MSC",
+  "header_field_patterns": {
+    "vessel": "NAME OF SHIP\\s*\\n\\s*([A-Z0-9\\s]+?)\\s*\\(",
+    "voyage": "VOYAGE\\s*\\n\\s*([A-Z0-9]+)",
+    "date_of_arrival": "Date Of Arrival at Port of Discharge\\s*\\n\\s*(\\d{2}\\s[A-Za-z]{3}\\s\\d{4})"
+  },
+  "parse_code_b64": "import re\n\ndef parse(text: str) -> list[dict]:\n    cargo_lines = []\n\n    # Split the document into potential BL blocks\n    # A new BL block starts with 'SH:' or 'B/L NR.' followed by a BL number pattern\n    bl_blocks = re.split(r'(?=\\n\\s*SH:\\s*|\\n\\s*B/L NR\\.\\s*\\d)', text, flags=re.IGNORECASE)\n\n    # Extract header fields once from the first part of the document\n    vessel_match = re.search(r'NAME OF SHIP\\s*\\n\\s*([A-Z0-9\\s]+?)\\s*\\(', text)\n    vessel = vessel_match.group(1).strip() if vessel_match else None\n\n    voyage_match = re.search(r'VOYAGE\\s*\\n\\s*([A-Z0-9]+)', text)\n    voyage = voyage_match.group(1).strip() if voyage_match else None\n\n    date_of_arrival_match = re.search(r'Date Of Arrival at Port of Discharge\\s*\\n\\s*(\\d{2}\\s[A-Za-z]{3}\\s\\d{4})', text)\n    date_of_arrival = date_of_arrival_match.group(1).strip() if date_of_arrival_match else None\n\n    # Process each BL block\n    for block in bl_blocks:\n        if not block.strip():\n            continue\n\n        # Try to find a B/L number to confirm it's a cargo block\n        bl_number_match = re.search(r'B/L NR\\.\\s*([A-Z0-9]+)', block)\n        if not bl_number_match:\n            # If no BL number, it might be a continuation of the previous BL's containers\n            # or just header/footer info. Skip for now, will handle containers separately.\n            continue\n\n        bl_number = bl_number_match.group(1).strip()\n\n        # Extract common BL fields\n        shipper_match = re.search(r'SH:\\s*(.*?)(?=\\n\\s*CO:|$)', block, re.DOTALL)\n        shipper = shipper_match.group(1).strip() if shipper_match else None\n\n        consignee_match = re.search(r'CO:\\s*(.*?)(?=\\n\\s*NF:|$)', block, re.DOTALL)\n        consignee = consignee_match.group(1).strip() if consignee_match else None\n\n        notify_match = re.search(r'NF:\\s*(.*?)(?=\\n\\s*EW:|$|Total No\\. of containers:)', block, re.DOTALL)\n        notify = notify_match.group(1).strip() if notify_match else None\n\n        pol_match = re.search(r'5a\\. PORT OF LOADING\\s*\\n\\s*(.*?)(?=\\s*5b\\. PORT OF DISCHARGE)', block, re.DOTALL)\n        port_of_loading = pol_match.group(1).strip() if pol_match else None\n\n        pod_match = re.search(r'5b\\. PORT OF DISCHARGE\\s*\\n\\s*(.*?)(?=\\s*FINAL DESTINATION)', block, re.DOTALL)\n        port_of_discharge = pod_match.group(1).strip() if pod_match else None\n\n        delivery_match = re.search(r'FINAL DESTINATION\\s*\\n\\s*(.*?)(?=\\s*Transshipment:|$)', block, re.DOTALL)\n        place_of_delivery = delivery_match.group(1).strip() if delivery_match else None\n\n        # Extract container details within the current BL block\n        container_lines = re.findall(r'(CN:([A-Z]{4}\\d{7})\\s*(.*?)(?:\\n|$)((?:(?!CN:)[\\s\\S])*?)(?=(?:CN:|$|Total No\\. of containers:)))', block, re.DOTALL)\n\n        if not container_lines:\n            # Handle cases where there's a BL but no explicit CN: line, maybe a single container implied\n            # This specific format seems to always have CN: for containers\n            pass\n\n        for cn_match in container_lines:\n            container_number = cn_match[1].strip()\n            container_type = cn_match[2].strip()\n            container_details_text = cn_match[3]\n\n            # Extract description, weight, and pack details from container_details_text\n            description_match = re.search(r'\\d+\\s*(?:PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))\\s*of\\s*(.*?)(?=\\s*Harmonized Code:|$|GROSS WEIGHT:)', container_details_text, re.DOTALL | re.IGNORECASE)\n            description = description_match.group(1).strip() if description_match else None\n\n            weight_match = re.search(r'(\\d+\\.\\d{2})\\s*(kgs|lbs)\\.', container_details_text, re.IGNORECASE)\n            weight = float(weight_match.group(1)) if weight_match else None\n            weight_unit = weight_match.group(2).lower() if weight_match else None\n\n            pack_qty_match = re.search(r'(\\d+)\\s*(PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))', container_details_text, re.IGNORECASE)\n            pack_qty = int(pack_qty_match.group(1)) if pack_qty_match else None\n            pack_unit = pack_qty_match.group(2).replace('(S)', '').lower() if pack_qty_match else None\n\n            cargo_line = {\n                'bl_number': bl_number,\n                'container_number': container_number,\n                'container_type': container_type,\n                'shipper': shipper,\n                'consignee': consignee,\n                'notify': notify,\n                'port_of_loading': port_of_loading,\n                'port_of_discharge': port_of_discharge,\n                'place_of_delivery': place_of_delivery,\n                'description': description,\n                'weight': weight,\n                'weight_unit': weight_unit,\n                'pack_qty': pack_qty,\n                'pack_unit': pack_unit\n            }\n            cargo_lines.append(cargo_line)\n\n    return cargo_lines\n",
+  "parse_code": "import re\n\ndef parse(text: str) -> list[dict]:\n    cargo_lines = []\n\n    # Split the document into potential BL blocks\n    # A new BL block starts with 'SH:' or 'B/L NR.' followed by a BL number pattern\n    bl_blocks = re.split(r'(?=\\n\\s*SH:\\s*|\\n\\s*B/L NR\\.\\s*\\d)', text, flags=re.IGNORECASE)\n\n    # Extract header fields once from the first part of the document\n    vessel_match = re.search(r'NAME OF SHIP\\s*\\n\\s*([A-Z0-9\\s]+?)\\s*\\(', text)\n    vessel = vessel_match.group(1).strip() if vessel_match else None\n\n    voyage_match = re.search(r'VOYAGE\\s*\\n\\s*([A-Z0-9]+)', text)\n    voyage = voyage_match.group(1).strip() if voyage_match else None\n\n    date_of_arrival_match = re.search(r'Date Of Arrival at Port of Discharge\\s*\\n\\s*(\\d{2}\\s[A-Za-z]{3}\\s\\d{4})', text)\n    date_of_arrival = date_of_arrival_match.group(1).strip() if date_of_arrival_match else None\n\n    # Process each BL block\n    for block in bl_blocks:\n        if not block.strip():\n            continue\n\n        # Try to find a B/L number to confirm it's a cargo block\n        bl_number_match = re.search(r'B/L NR\\.\\s*([A-Z0-9]+)', block)\n        if not bl_number_match:\n            # If no BL number, it might be a continuation of the previous BL's containers\n            # or just header/footer info. Skip for now, will handle containers separately.\n            continue\n\n        bl_number = bl_number_match.group(1).strip()\n\n        # Extract common BL fields\n        shipper_match = re.search(r'SH:\\s*(.*?)(?=\\n\\s*CO:|$)', block, re.DOTALL)\n        shipper = shipper_match.group(1).strip() if shipper_match else None\n\n        consignee_match = re.search(r'CO:\\s*(.*?)(?=\\n\\s*NF:|$)', block, re.DOTALL)\n        consignee = consignee_match.group(1).strip() if consignee_match else None\n\n        notify_match = re.search(r'NF:\\s*(.*?)(?=\\n\\s*EW:|$|Total No\\. of containers:)', block, re.DOTALL)\n        notify = notify_match.group(1).strip() if notify_match else None\n\n        pol_match = re.search(r'5a\\. PORT OF LOADING\\s*\\n\\s*(.*?)(?=\\s*5b\\. PORT OF DISCHARGE)', block, re.DOTALL)\n        port_of_loading = pol_match.group(1).strip() if pol_match else None\n\n        pod_match = re.search(r'5b\\. PORT OF DISCHARGE\\s*\\n\\s*(.*?)(?=\\s*FINAL DESTINATION)', block, re.DOTALL)\n        port_of_discharge = pod_match.group(1).strip() if pod_match else None\n\n        delivery_match = re.search(r'FINAL DESTINATION\\s*\\n\\s*(.*?)(?=\\s*Transshipment:|$)', block, re.DOTALL)\n        place_of_delivery = delivery_match.group(1).strip() if delivery_match else None\n\n        # Extract container details within the current BL block\n        container_lines = re.findall(r'(CN:([A-Z]{4}\\d{7})\\s*(.*?)(?:\\n|$)((?:(?!CN:)[\\s\\S])*?)(?=(?:CN:|$|Total No\\. of containers:)))', block, re.DOTALL)\n\n        if not container_lines:\n            # Handle cases where there's a BL but no explicit CN: line, maybe a single container implied\n            # This specific format seems to always have CN: for containers\n            pass\n\n        for cn_match in container_lines:\n            container_number = cn_match[1].strip()\n            container_type = cn_match[2].strip()\n            container_details_text = cn_match[3]\n\n            # Extract description, weight, and pack details from container_details_text\n            description_match = re.search(r'\\d+\\s*(?:PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))\\s*of\\s*(.*?)(?=\\s*Harmonized Code:|$|GROSS WEIGHT:)', container_details_text, re.DOTALL | re.IGNORECASE)\n            description = description_match.group(1).strip() if description_match else None\n\n            weight_match = re.search(r'(\\d+\\.\\d{2})\\s*(kgs|lbs)\\.', container_details_text, re.IGNORECASE)\n            weight = float(weight_match.group(1)) if weight_match else None\n            weight_unit = weight_match.group(2).lower() if weight_match else None\n\n            pack_qty_match = re.search(r'(\\d+)\\s*(PALLET\\(S\\)|BAG\\(S\\)|PACKAGE\\(S\\))', container_details_text, re.IGNORECASE)\n            pack_qty = int(pack_qty_match.group(1)) if pack_qty_match else None\n            pack_unit = pack_qty_match.group(2).replace('(S)', '').lower() if pack_qty_match else None\n\n            cargo_line = {\n                'bl_number': bl_number,\n                'container_number': container_number,\n                'container_type': container_type,\n                'shipper': shipper,\n                'consignee': consignee,\n                'notify': notify,\n                'port_of_loading': port_of_loading,\n                'port_of_discharge': port_of_discharge,\n                'place_of_delivery': place_of_delivery,\n                'description': description,\n                'weight': weight,\n                'weight_unit': weight_unit,\n                'pack_qty': pack_qty,\n                'pack_unit': pack_unit\n            }\n            cargo_lines.append(cargo_line)\n\n    return cargo_lines\n"
+}
