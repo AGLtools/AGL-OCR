@@ -78,7 +78,43 @@ def parse_with_template(
     # --- Header fields ---
     header = _extract_header(full_text, template)
 
-    # --- Mode 1: AI-generated parse(text) Python function (preferred) ---
+    # --- Mode 0: SPATIAL TEMPLATE (preferred — robust, no regex code) ---
+    spatial_rules = template.get("spatial_rules") or template.get("spatial_template")
+    if spatial_rules:
+        try:
+            from ..spatial_template import SpatialTemplate
+            from ..spatial_parser import parse_with_spatial_template
+            # The spatial descriptor may live either at parse_template root
+            # (legacy) or under the "spatial_template" key. Accept both.
+            descriptor = (
+                spatial_rules
+                if isinstance(spatial_rules, dict) and "field_rules" in spatial_rules
+                else {**template, "field_rules": spatial_rules}
+            )
+            st = SpatialTemplate.from_dict(descriptor)
+            if progress_cb:
+                progress_cb("Parser local (template spatial)…")
+            rows = parse_with_spatial_template(
+                pdf_path, st,
+                ocr_text=text_override if st.is_scanned else None,
+                progress_cb=progress_cb,
+            )
+            if rows:
+                # Merge header (from regex header_field_patterns) as fallback
+                # for any field the spatial rules left empty.
+                for r in rows:
+                    for k, v in header.items():
+                        r.setdefault(k, v)
+                    r.setdefault("source_file", str(pdf_path))
+                return rows
+            # Spatial parser returned 0 → fall through to legacy modes
+            if progress_cb:
+                progress_cb("Template spatial vide — bascule sur parse_code legacy.")
+        except Exception as e:
+            if progress_cb:
+                progress_cb(f"Template spatial en echec ({e}) — fallback parse_code.")
+
+    # --- Mode 1: AI-generated parse(text) Python function (legacy) ---
     parse_code = (template.get("parse_code") or "").strip()
     if parse_code:
         if progress_cb:
@@ -176,9 +212,13 @@ def _compile_row_patterns(patterns) -> List[re.Pattern]:
 
 
 def template_is_usable(template: Optional[Dict]) -> bool:
-    """True if the template has a parse_code function OR at least one valid row pattern."""
+    """True if the template has spatial rules, a parse_code function,
+    OR at least one valid row pattern.
+    """
     if not template:
         return False
+    if template.get("spatial_rules") or template.get("spatial_template"):
+        return True
     if (template.get("parse_code") or "").strip():
         return True
     return bool(_compile_row_patterns(template.get("row_patterns") or []))

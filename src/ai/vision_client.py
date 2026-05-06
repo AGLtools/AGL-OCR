@@ -181,3 +181,90 @@ def is_configured() -> bool:
         return True
     except VisionError:
         return False
+
+
+def local_ocr_pdf(
+    pdf_path: str | Path,
+    *,
+    dpi: int = DEFAULT_DPI,
+    max_pages: Optional[int] = None,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
+) -> str:
+    """OCR a PDF locally with bundled Tesseract — fully parallel (one thread/page).
+
+    Used when Cloud Vision is not configured. Returns concatenated text
+    in the same `=== PAGE N ===` layout as `ocr_pdf` for consistency.
+    """
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists():
+        raise VisionError(f"Fichier introuvable : {pdf_path}")
+    try:
+        from pdf2image import convert_from_path
+        import pytesseract
+    except ImportError as e:
+        raise VisionError(
+            "pdf2image / pytesseract requis pour l'OCR local."
+        ) from e
+
+    from ..paths import poppler_bin, tesseract_exe
+    poppler_path = poppler_bin()
+    tess = tesseract_exe()
+    if tess:
+        pytesseract.pytesseract.tesseract_cmd = tess
+
+    images = convert_from_path(
+        str(pdf_path), dpi=dpi, poppler_path=poppler_path, fmt="png",
+    )
+    if max_pages:
+        images = images[:max_pages]
+    total = len(images)
+    results: List[Optional[str]] = [None] * total
+    done_lock = threading.Lock()
+    done_count = [0]
+
+    def _ocr_one(idx: int, img) -> tuple[int, str]:
+        try:
+            txt = pytesseract.image_to_string(img, lang="eng+fra")
+        except Exception as e:
+            txt = f"(OCR error page {idx + 1}: {e})"
+        return idx, txt
+
+    with ThreadPoolExecutor(max_workers=min(total, 4)) as pool:
+        futs = {pool.submit(_ocr_one, i, img): i for i, img in enumerate(images)}
+        for fut in as_completed(futs):
+            if cancel_check is not None and cancel_check():
+                from .ai_extractor import AICancelled
+                raise AICancelled("OCR local annulé")
+            idx, txt = fut.result()
+            results[idx] = txt
+            with done_lock:
+                done_count[0] += 1
+                done = done_count[0]
+            if progress_cb:
+                progress_cb(done, total)
+
+    parts = [f"\n\n=== PAGE {i + 1} ===\n{results[i]}" for i in range(total)]
+    return "".join(parts).strip()
+
+
+def ocr_scanned_pdf(
+    pdf_path: str | Path,
+    *,
+    max_pages: Optional[int] = None,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    progress_cb: Optional[Callable[[int, int], None]] = None,
+) -> str:
+    """Smart dispatch: Cloud Vision if configured, else local Tesseract.
+
+    Raises VisionError if both backends are unavailable.
+    """
+    if is_configured():
+        return ocr_pdf(
+            pdf_path, max_pages=max_pages,
+            cancel_check=cancel_check, progress_cb=progress_cb,
+        )
+    return local_ocr_pdf(
+        pdf_path, max_pages=max_pages,
+        cancel_check=cancel_check, progress_cb=progress_cb,
+    )

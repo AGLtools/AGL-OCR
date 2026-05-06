@@ -95,7 +95,21 @@ class CorrectionStore:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(payload)
-            os.replace(tmp, self.path)
+            # Retry os.replace — Windows OneDrive / antivirus may briefly
+            # hold a handle on the destination file just after the temp is
+            # created. Backoff 50/100/200/400/800 ms before giving up.
+            import time as _time
+            last_err: Exception | None = None
+            for attempt in range(5):
+                try:
+                    os.replace(tmp, self.path)
+                    last_err = None
+                    break
+                except PermissionError as e:
+                    last_err = e
+                    _time.sleep(0.05 * (2 ** attempt))
+            if last_err is not None:
+                raise last_err
         except Exception:
             try:
                 os.unlink(tmp)

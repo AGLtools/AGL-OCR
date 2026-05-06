@@ -17,7 +17,13 @@ from ..ai import (
     list_learned, save_learned, delete_learned,
     get_ocr_engine, set_ocr_engine,
 )
-from ..ai.gemini_client import get_vision_api_key, set_vision_api_key
+from ..ai.gemini_client import (
+    get_vision_api_key, set_vision_api_key,
+    get_deepseek_api_key, set_deepseek_api_key,
+    get_deepseek_model, set_deepseek_model,
+    get_learning_providers, set_learning_providers,
+)
+from ..ai import llm_providers
 
 
 # ============================================================
@@ -112,10 +118,15 @@ class AILearnWorker(QThread):
     finished_ok = pyqtSignal(dict)
     failed = pyqtSignal(str)
     cancelled = pyqtSignal()
+    progress = pyqtSignal(str)
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, extra_feedback: str = "",
+                 ocr_engine: str = "auto", previous_code: str = ""):
         super().__init__()
         self.file_path = file_path
+        self.extra_feedback = extra_feedback
+        self.ocr_engine = ocr_engine  # "auto" | "vision" | "local"
+        self.previous_code = previous_code
         self._cancel = False
 
     def cancel(self):
@@ -125,13 +136,108 @@ class AILearnWorker(QThread):
     def run(self):
         from ..ai.ai_extractor import AICancelled
         try:
-            data = learn_format_from_pdf(self.file_path, cancel_check=lambda: self._cancel)
+            data = learn_format_from_pdf(
+                self.file_path,
+                cancel_check=lambda: self._cancel,
+                extra_feedback=self.extra_feedback,
+                progress_cb=lambda msg: self.progress.emit(msg),
+                ocr_engine=self.ocr_engine,
+                previous_code=self.previous_code,
+            )
             self.finished_ok.emit(data)
         except AICancelled:
             self.cancelled.emit()
         except Exception as e:
             import traceback
             self.failed.emit(f"{e}\n\n{traceback.format_exc()}")
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Real-time learning progress dialog
+# ════════════════════════════════════════════════════════════════════════
+class LearnProgressDialog(QDialog):
+    """Live progress + log panel for AI format learning.
+
+    Owns the AILearnWorker and streams its progress messages into a
+    scrollable log so the user can watch what each LLM provider is doing
+    in real time. Closing the dialog cancels the worker.
+    """
+
+    finished_ok = pyqtSignal(dict)
+    cancelled = pyqtSignal()
+    failed = pyqtSignal(str)
+
+    def __init__(self, worker: "AILearnWorker", parent=None, *,
+                 title: str = "Apprentissage IA en cours…"):
+        super().__init__(parent)
+        self.worker = worker
+        self.setWindowTitle(title)
+        self.resize(720, 460)
+        # Keep the dialog modal-ish but not freezing the main thread.
+        self.setModal(True)
+
+        lay = QVBoxLayout(self)
+        self.lbl_status = QLabel("Démarrage…")
+        self.lbl_status.setStyleSheet("font-weight: bold; color: #1A4076; padding: 4px;")
+        lay.addWidget(self.lbl_status)
+
+        self.txt_log = QPlainTextEdit()
+        self.txt_log.setReadOnly(True)
+        self.txt_log.setStyleSheet(
+            "font-family: Consolas, 'Courier New', monospace; font-size: 11px; "
+            "background: #1A1A2E; color: #E8E8E8;"
+        )
+        lay.addWidget(self.txt_log, 1)
+
+        bb = QHBoxLayout()
+        bb.addStretch(1)
+        self.btn_cancel = QPushButton("Annuler")
+        self.btn_cancel.clicked.connect(self._on_cancel_clicked)
+        bb.addWidget(self.btn_cancel)
+        lay.addLayout(bb)
+
+        self.worker.progress.connect(self._on_progress)
+        self.worker.finished_ok.connect(self._on_done)
+        self.worker.failed.connect(self._on_failed)
+        self.worker.cancelled.connect(self._on_cancelled)
+
+    def _on_progress(self, msg: str):
+        from datetime import datetime
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.lbl_status.setText(msg)
+        self.txt_log.appendPlainText(f"[{ts}] {msg}")
+        # Auto-scroll
+        sb = self.txt_log.verticalScrollBar()
+        sb.setValue(sb.maximum())
+
+    def _on_done(self, data: dict):
+        self.lbl_status.setText("Terminé.")
+        self.txt_log.appendPlainText("[OK] Apprentissage terminé.")
+        self.finished_ok.emit(data)
+        self.accept()
+
+    def _on_failed(self, err: str):
+        self.lbl_status.setText("Échec.")
+        self.txt_log.appendPlainText(f"[ERREUR] {err}")
+        self.btn_cancel.setText("Fermer")
+        self.failed.emit(err)
+
+    def _on_cancelled(self):
+        self.lbl_status.setText("Annulé.")
+        self.txt_log.appendPlainText("[ANNULE] L'utilisateur a annule l'apprentissage.")
+        self.cancelled.emit()
+        self.reject()
+
+    def _on_cancel_clicked(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+        else:
+            self.reject()
+
+    def closeEvent(self, event):
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+        super().closeEvent(event)
 
 
 class AIFixWorker(QThread):
@@ -162,17 +268,17 @@ class GeminiConfigDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Configuration IA — Google Gemini & Cloud Vision")
-        self.resize(620, 420)
+        self.setWindowTitle("Configuration IA — Modèles & OCR")
+        self.resize(660, 720)
 
         lay = QVBoxLayout(self)
 
         info = QLabel(
             "<b>Clés API Google</b><br>"
-            "• <b>Gemini</b> : structuration des manifestes (texte). Clé gratuite sur "
+            "• <b>Gemini</b> : structuration des manifestes (texte). Clé gratuite sur"
             "<a href='https://aistudio.google.com/apikey'>aistudio.google.com/apikey</a>.<br>"
-            "• <b>Cloud Vision</b> : OCR rapide pour gros volumes (PDF scannés). Activez "
-            "<i>Cloud Vision API</i> sur <a href='https://console.cloud.google.com/apis/library/vision.googleapis.com'>console.cloud.google.com</a>. "
+            "• <b>Cloud Vision</b> : OCR rapide pour gros volumes (PDF scannés). Activez"
+            "<i>Cloud Vision API</i> sur <a href='https://console.cloud.google.com/apis/library/vision.googleapis.com'>console.cloud.google.com</a>."
             "Si laissé vide, la clé Gemini sera réutilisée (même projet GCP).<br><br>"
             "Les clés sont stockées dans <code>data/ai_config.json</code> (gitignoré)."
         )
@@ -244,8 +350,47 @@ class GeminiConfigDialog(QDialog):
         ocr_lay.addWidget(self.rb_local)
         lay.addWidget(ocr_group)
 
+        # ── DeepSeek (second LLM provider) ───────────────────────────
+        ds_group = QGroupBox("DeepSeek (deuxième fournisseur IA — texte uniquement)")
+        ds_lay = QFormLayout(ds_group)
+        self.ds_key_edit = QLineEdit()
+        self.ds_key_edit.setEchoMode(QLineEdit.Password)
+        self.ds_key_edit.setPlaceholderText("sk-…  (https://platform.deepseek.com)")
+        ds_existing = get_deepseek_api_key()
+        if ds_existing:
+            self.ds_key_edit.setText(ds_existing)
+        ds_lay.addRow("Clé DeepSeek :", self.ds_key_edit)
+
+        self.ds_model_combo = QComboBox()
+        self.ds_model_combo.addItems(["deepseek-chat", "deepseek-reasoner"])
+        cur_ds = get_deepseek_model()
+        if cur_ds in ("deepseek-chat", "deepseek-reasoner"):
+            self.ds_model_combo.setCurrentText(cur_ds)
+        ds_lay.addRow("Modèle DeepSeek :", self.ds_model_combo)
+        lay.addWidget(ds_group)
+
+        # ── Multi-model learning selection ────────────────────────────
+        ml_group = QGroupBox(
+            "Apprentissage multi-modèles (« Apprendre ce format à l'IA »)"
+        )
+        ml_lay = QVBoxLayout(ml_group)
+        ml_lay.addWidget(QLabel(
+            "Cochez les fournisseurs qui doivent être interrogés en parallèle "
+            "lors de l'apprentissage d'un nouveau format. Le parser produit "
+            "le plus grand nombre de lignes valides est conservé."
+        ))
+        self._provider_checks = {}
+        enabled = set(get_learning_providers())
+        for pid in llm_providers.all_provider_ids():
+            prov = llm_providers.get_provider(pid)
+            cb = QCheckBox(prov.display_name + (" (vision)" if prov.supports_vision else ""))
+            cb.setChecked(pid in enabled)
+            self._provider_checks[pid] = cb
+            ml_lay.addWidget(cb)
+        lay.addWidget(ml_group)
+
         hint = QLabel(
-            "<i>Recommandé : <b>gemini-2.5-flash</b> + Cloud Vision activé sur le même projet GCP. "
+            "<i>Recommandé : <b>gemini-2.5-flash</b> + Cloud Vision activé sur le même projet GCP."
             "Avec un crédit GCP de 300 $, vous pouvez traiter ~200 000 pages OCR avant facturation.</i>"
         )
         hint.setStyleSheet("color: #555; font-size: 11px;")
@@ -265,6 +410,13 @@ class GeminiConfigDialog(QDialog):
         set_api_key(key)
         set_vision_api_key(self.vision_edit.text().strip())
         set_model_name(self.model_combo.currentText())
+        set_deepseek_api_key(self.ds_key_edit.text().strip())
+        set_deepseek_model(self.ds_model_combo.currentText())
+        # Persist the multi-provider selection (always include at least gemini).
+        chosen = [pid for pid, cb in self._provider_checks.items() if cb.isChecked()]
+        if not chosen:
+            chosen = ["gemini"]
+        set_learning_providers(chosen)
         if self.rb_cloud.isChecked():
             set_ocr_engine("cloud_vision")
         elif self.rb_local.isChecked():
@@ -285,8 +437,8 @@ class LearnedFormatsDialog(QDialog):
 
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel(
-            "<b>Formats reconnus automatiquement.</b> "
-            "Lorsqu'un PDF correspond à l'une des signatures ci-dessous, "
+            "<b>Formats reconnus automatiquement.</b>"
+            "Lorsqu'un PDF correspond à l'une des signatures ci-dessous,"
             "l'application l'extrait directement avec les indications apprises."
         ))
 
@@ -301,9 +453,21 @@ class LearnedFormatsDialog(QDialog):
         self.lst.currentRowChanged.connect(self._show_detail)
 
         btns = QHBoxLayout()
-        btn_del = QPushButton("🗑 Supprimer")
+        btn_del = QPushButton("Supprimer")
         btn_del.clicked.connect(self._delete_current)
         btns.addWidget(btn_del)
+        btn_code = QPushButton("Éditer le parser…")
+        btn_code.setToolTip("Voir / modifier le code Python du parser local appris.")
+        btn_code.clicked.connect(self._edit_code)
+        btns.addWidget(btn_code)
+        btn_hints = QPushButton("Éditer les indications…")
+        btn_hints.setToolTip("Texte injecté dans les prochaines extractions IA.")
+        btn_hints.clicked.connect(self._edit_hints)
+        btns.addWidget(btn_hints)
+        btn_fb = QPushButton("Voir les feedbacks…")
+        btn_fb.setToolTip("Liste des commentaires utilisateur attachés à ce format.")
+        btn_fb.clicked.connect(self._view_feedback)
+        btns.addWidget(btn_fb)
         btns.addStretch(1)
         btn_close = QPushButton("Fermer")
         btn_close.clicked.connect(self.accept)
@@ -322,8 +486,8 @@ class LearnedFormatsDialog(QDialog):
         self.lst.setEnabled(True)
         for fmt in self._items:
             sig_count = len(fmt.get("signature") or [])
-            scan_tag = " 📷" if fmt.get("is_scanned") else ""
-            label = f"{fmt.get('name', '?')}{scan_tag}  —  {fmt.get('carrier', '')}  ({sig_count} mots-clés)"
+            scan_tag = "" if fmt.get("is_scanned") else ""
+            label = f"{fmt.get('name', '?')}{scan_tag} — {fmt.get('carrier', '')} ({sig_count} mots-clés)"
             self.lst.addItem(QListWidgetItem(label))
 
     def _show_detail(self, idx: int):
@@ -349,6 +513,192 @@ class LearnedFormatsDialog(QDialog):
             return
         delete_learned(name)
         self._reload()
+
+    def _current_format(self) -> Optional[Dict]:
+        idx = self.lst.currentRow()
+        if not self._items or idx < 0 or idx >= len(self._items):
+            return None
+        return self._items[idx]
+
+    def _edit_code(self):
+        from ..ai.format_registry import update_format
+        f = self._current_format()
+        if not f:
+            return
+        tpl = f.get("parse_template") or {}
+        code = tpl.get("parse_code") or ""
+        dlg = _CodeEditorDialog(
+            f"Code parser local — {f.get('name', '?')}",
+            code, language="python", parent=self,
+        )
+        if dlg.exec_() == dlg.Accepted:
+            new_code = dlg.text()
+            tpl["parse_code"] = new_code
+            update_format(f.get("name", ""), parse_template=tpl)
+            QMessageBox.information(
+                self, "Sauvegardé",
+                "Le parser a été mis à jour. Re-testez sur un document.",
+            )
+            self._reload()
+
+    def _edit_hints(self):
+        from ..ai.format_registry import update_format
+        f = self._current_format()
+        if not f:
+            return
+        dlg = _CodeEditorDialog(
+            f"Indications IA — {f.get('name', '?')}",
+            f.get("extraction_hints", ""), language="text", parent=self,
+        )
+        if dlg.exec_() == dlg.Accepted:
+            update_format(f.get("name", ""), extraction_hints=dlg.text())
+            QMessageBox.information(self, "Sauvegardé", "Indications mises à jour.")
+            self._reload()
+
+    def _view_feedback(self):
+        f = self._current_format()
+        if not f:
+            return
+        fb = f.get("feedback") or []
+        if not fb:
+            QMessageBox.information(
+                self, "Aucun feedback",
+                f"Aucun feedback enregistré pour « {f.get('name', '?')} »."
+            )
+            return
+        lines = []
+        for i, e in enumerate(fb, 1):
+            lines.append(
+                f"[{i}] {e.get('timestamp', '')}  ({e.get('doc_name', '')})\n"
+                f"    {e.get('text', '').strip()}\n"
+            )
+        dlg = _CodeEditorDialog(
+            f"Feedbacks — {f.get('name', '?')} ({len(fb)} entrée(s))",
+            "\n".join(lines), language="text", parent=self, read_only=True,
+        )
+        dlg.exec_()
+
+
+class _CodeEditorDialog(QDialog):
+    """Generic monospace text editor used by the dev tools."""
+
+    def __init__(self, title: str, content: str, *,
+                 language: str = "text", parent=None, read_only: bool = False):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(900, 620)
+        lay = QVBoxLayout(self)
+        self.edit = QPlainTextEdit()
+        self.edit.setPlainText(content or "")
+        self.edit.setReadOnly(read_only)
+        font_css = "font-family: Consolas, 'Courier New', monospace; font-size: 12px;"
+        self.edit.setStyleSheet(font_css)
+        lay.addWidget(self.edit, 1)
+        if read_only:
+            bb = QDialogButtonBox(QDialogButtonBox.Close)
+            bb.rejected.connect(self.reject)
+            bb.accepted.connect(self.accept)
+            # Close button maps to rejected by default; alias both to close
+            bb.button(QDialogButtonBox.Close).clicked.connect(self.accept)
+        else:
+            bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            bb.accepted.connect(self.accept)
+            bb.rejected.connect(self.reject)
+        lay.addWidget(bb)
+
+    def text(self) -> str:
+        return self.edit.toPlainText()
+
+
+class DeveloperToolsDialog(QDialog):
+    """Developer dashboard: prompts, formats, feedbacks at a glance."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Outils développeur — IA")
+        self.resize(720, 520)
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(
+            "<b>Outils développeur.</b> Accès direct aux prompts internes, "
+            "aux formats appris, aux feedbacks et aux logs."
+        ))
+        btn_prompts = QPushButton("Voir / éditer les prompts système…")
+        btn_prompts.setToolTip(
+            "Affiche les prompts d'extraction et d'apprentissage utilisés par "
+            "l'IA. La modification est temporaire (jusqu'au prochain démarrage)."
+        )
+        btn_prompts.clicked.connect(self._edit_prompts)
+        lay.addWidget(btn_prompts)
+
+        btn_formats = QPushButton("Gérer les formats appris (avancé)…")
+        btn_formats.clicked.connect(lambda: LearnedFormatsDialog(self).exec_())
+        lay.addWidget(btn_formats)
+
+        btn_logs = QPushButton("Ouvrir le dossier des logs IA…")
+        btn_logs.clicked.connect(self._open_logs)
+        lay.addWidget(btn_logs)
+
+        btn_providers = QPushButton("Tester les fournisseurs IA configurés…")
+        btn_providers.clicked.connect(self._test_providers)
+        lay.addWidget(btn_providers)
+
+        lay.addStretch(1)
+        bb = QDialogButtonBox(QDialogButtonBox.Close)
+        bb.rejected.connect(self.reject)
+        bb.accepted.connect(self.accept)
+        bb.button(QDialogButtonBox.Close).clicked.connect(self.accept)
+        lay.addWidget(bb)
+
+    def _edit_prompts(self):
+        from ..ai import ai_extractor
+        prompts = {
+            "_EXTRACT_INSTRUCTIONS": getattr(ai_extractor, "_EXTRACT_INSTRUCTIONS", ""),
+            "_LEARN_COMBINED_INSTRUCTIONS": getattr(ai_extractor, "_LEARN_COMBINED_INSTRUCTIONS", ""),
+            "_FIX_INSTRUCTIONS": getattr(ai_extractor, "_FIX_INSTRUCTIONS", ""),
+        }
+        from PyQt5.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getItem(
+            self, "Choisir un prompt",
+            "Quel prompt afficher / modifier ?",
+            list(prompts.keys()), 0, False,
+        )
+        if not ok:
+            return
+        dlg = _CodeEditorDialog(
+            f"Prompt: {name}", prompts[name], language="text", parent=self,
+        )
+        if dlg.exec_() == dlg.Accepted:
+            setattr(ai_extractor, name, dlg.text())
+            QMessageBox.information(
+                self, "Modifié (session)",
+                "Le prompt est modifié pour la session en cours. "
+                "Pour persister, modifiez src/ai/ai_extractor.py.",
+            )
+
+    def _open_logs(self):
+        from ..ai.debug_log import _dir as _log_dir
+        from PyQt5.QtGui import QDesktopServices
+        from PyQt5.QtCore import QUrl
+        try:
+            d = _log_dir()
+        except Exception:
+            d = None
+        if d:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
+        else:
+            QMessageBox.information(self, "Logs", "Dossier de logs introuvable.")
+
+    def _test_providers(self):
+        results = []
+        for prov in [llm_providers.get_provider(p) for p in llm_providers.all_provider_ids()]:
+            if not prov:
+                continue
+            tag = "OK " if prov.is_configured() else "(clé manquante)"
+            results.append(f"  • {prov.display_name:18s} : {tag}")
+        msg = "Fournisseurs IA disponibles :\n\n" + "\n".join(results)
+        msg += "\n\nFournisseurs activés pour l'apprentissage :\n  "
+        msg += ", ".join(get_learning_providers()) or "(aucun)"
+        QMessageBox.information(self, "Fournisseurs IA", msg)
 
 
 class LearnedSummaryDialog(QDialog):
@@ -388,10 +738,10 @@ class LearnedSummaryDialog(QDialog):
         # Show how many example rows were captured (re-used as few-shot next time)
         ex_rows = self._learned.get("example_rows") or []
         ex_label = QLabel(
-            f"<b>Exemples extraits :</b> {len(ex_rows)} ligne(s) mémorisée(s) — "
+            f"<b>Exemples extraits :</b> {len(ex_rows)} ligne(s) mémorisée(s) —"
             "l'IA s'en servira comme référence sur les prochains documents de ce format."
             if ex_rows else
-            "<i>⚠ Aucune ligne d'exemple n'a pu être extraite (extraction échouée ou format vide). "
+            "<i> Aucune ligne d'exemple n'a pu être extraite (extraction échouée ou format vide)."
             "Le format sera tout de même reconnu, mais sans référence few-shot.</i>"
         )
         ex_label.setWordWrap(True)
@@ -408,23 +758,43 @@ class LearnedSummaryDialog(QDialog):
         n_sample = self._learned.get("_local_row_count_on_sample")
         if has_code or n_row_pat > 0:
             kind = "fonction Python parse()" if has_code else f"{n_row_pat} pattern(s) de ligne"
-            extra = f" — {n_sample} ligne(s) extraite(s) sur l'échantillon" if isinstance(n_sample, int) else ""
+            extra = f"— {n_sample} ligne(s) extraite(s) sur l'échantillon" if isinstance(n_sample, int) else ""
             tpl_label = QLabel(
-                f"<b>⚙️ Parser local généré :</b> {kind}, {n_hdr_pat} champ(s) d'en-tête{extra}. "
+                f"<b> Parser local généré :</b> {kind}, {n_hdr_pat} champ(s) d'en-tête{extra}."
                 f"Les prochains documents de ce format seront extraits LOCALEMENT (sans IA, instantané)."
             )
             tpl_label.setStyleSheet("color: #2a6f2a; font-size: 11px;")
         else:
             tpl_label = QLabel(
-                "<i>⚠ Aucun parser local généré — les prochaines extractions de ce format "
+                "<i> Aucun parser local généré — les prochaines extractions de ce format"
                 "passeront par l'IA (lent). Vous pouvez ré-apprendre pour réessayer.</i>"
             )
             tpl_label.setStyleSheet("color: #a05a00; font-size: 11px;")
         tpl_label.setWordWrap(True)
         lay.addWidget(tpl_label)
 
+        # ── Multi-LLM ensemble: show the score table ─────────────────
+        learners = self._learned.get("_learners") or []
+        if learners:
+            lines = []
+            for l in learners:
+                tag = "  <-- WINNER" if l.get("won") else ""
+                ok = "OK" if l.get("ok") else "FAIL"
+                lines.append(
+                    f"{l.get('provider', '?'):10s} ({l.get('model', '?')}): "
+                    f"{ok}, {l.get('n_rows', 0)} lignes{tag}"
+                )
+            ens_label = QLabel(
+                "<b>Apprentissage multi-modèles :</b><br>"
+                "<pre style='background:#F4F7FB; padding:6px;'>"
+                + "\n".join(lines)
+                + "</pre>"
+            )
+            ens_label.setWordWrap(True)
+            lay.addWidget(ens_label)
+
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        bb.button(QDialogButtonBox.Save).setText("💾 Enregistrer le format")
+        bb.button(QDialogButtonBox.Save).setText("Enregistrer le format")
         bb.accepted.connect(self._save)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)

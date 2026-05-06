@@ -105,6 +105,52 @@ def has_vision_key() -> bool:
     return bool(get_vision_api_key()) or bool(get_api_key())
 
 
+# ── DeepSeek key (OpenAI-compatible API) ─────────────────────────────
+def get_deepseek_api_key() -> Optional[str]:
+    env = os.environ.get("DEEPSEEK_API_KEY")
+    if env:
+        return env.strip()
+    return (_load_cfg().get("deepseek_api_key") or "").strip() or None
+
+
+def set_deepseek_api_key(key: str) -> None:
+    cfg = _load_cfg()
+    cfg["deepseek_api_key"] = (key or "").strip()
+    _save_cfg(cfg)
+
+
+def has_deepseek_key() -> bool:
+    return bool(get_deepseek_api_key())
+
+
+def get_deepseek_model() -> str:
+    return _load_cfg().get("deepseek_model") or "deepseek-chat"
+
+
+def set_deepseek_model(name: str) -> None:
+    cfg = _load_cfg()
+    cfg["deepseek_model"] = name
+    _save_cfg(cfg)
+
+
+# ── Multi-provider learning preference ──────────────────────────────
+# List of provider IDs participating in ensemble format-learning.
+# Each provider produces a candidate parser; the one with the most
+# rows on the validation text wins.
+def get_learning_providers() -> list:
+    cfg = _load_cfg()
+    val = cfg.get("learning_providers")
+    if isinstance(val, list) and val:
+        return [str(v) for v in val]
+    return ["gemini"]  # safe default
+
+
+def set_learning_providers(providers: list) -> None:
+    cfg = _load_cfg()
+    cfg["learning_providers"] = list(providers or ["gemini"])
+    _save_cfg(cfg)
+
+
 # ── Model preference ───────────────────────────────────────────────────
 def get_model_name() -> str:
     return _load_cfg().get("model") or DEFAULT_MODEL

@@ -102,7 +102,7 @@ class FormatTrainerDialog(QDialog):
             return
 
         self.pdf_path = Path(pdf_path)
-        self.setWindowTitle("🎓 Apprendre un nouveau format de manifeste")
+        self.setWindowTitle("Apprendre un nouveau format de manifeste")
         self.resize(1500, 900)
 
         # State
@@ -151,11 +151,11 @@ class FormatTrainerDialog(QDialog):
         rlay.addWidget(meta)
 
         # Field list
-        rlay.addWidget(QLabel("<b>Champs à apprendre</b> "
+        rlay.addWidget(QLabel("<b>Champs à apprendre</b>"
                               "<i>(cliquez une ligne pour y revenir)</i>"))
         self.field_list = QListWidget()
         for key, label, hint in TRAINER_FIELDS:
-            it = QListWidgetItem(f"○  {label}")
+            it = QListWidgetItem(label)
             it.setData(Qt.UserRole, key)
             it.setToolTip(hint)
             self.field_list.addItem(it)
@@ -173,15 +173,15 @@ class FormatTrainerDialog(QDialog):
         rlay.addWidget(self.instruction)
 
         # Action buttons
-        btn_skip = QPushButton("⏭  Ignorer ce champ")
+        btn_skip = QPushButton("Ignorer ce champ")
         btn_skip.clicked.connect(self._skip_current)
-        btn_redo = QPushButton("🔄  Refaire le champ courant")
+        btn_redo = QPushButton("Refaire le champ courant")
         btn_redo.clicked.connect(self._redo_current)
         rlay.addWidget(btn_skip)
         rlay.addWidget(btn_redo)
 
         save_row = QHBoxLayout()
-        btn_save = QPushButton("💾  Enregistrer le format")
+        btn_save = QPushButton("Enregistrer le format")
         btn_save.setStyleSheet(
             "font-weight:bold;background:#cce5ff;padding:8px;"
         )
@@ -235,7 +235,7 @@ class FormatTrainerDialog(QDialog):
     def _refresh_instruction(self):
         if self.current_step >= len(TRAINER_FIELDS):
             self.instruction.setText(
-                "<b>✓ Tous les champs sont terminés.</b><br>"
+                "<b> Tous les champs sont terminés.</b><br>"
                 "Renseignez le nom du format + le mot-clé de détection ci-dessus,<br>"
                 "puis cliquez sur <b>Enregistrer le format</b>."
             )
@@ -244,20 +244,20 @@ class FormatTrainerDialog(QDialog):
         self.field_list.setCurrentRow(self.current_step)
         if self.current_phase == "label":
             self.instruction.setText(
-                f"<b>Étape {self.current_step + 1}/{len(TRAINER_FIELDS)} : "
+                f"<b>Étape {self.current_step + 1}/{len(TRAINER_FIELDS)} :"
                 f"{label}</b><br>"
-                f"👉 Cliquez sur le <b>LIBELLÉ</b> dans le document<br>"
+                f"Cliquez sur le <b>LIBELLÉ</b> dans le document<br>"
                 f"<i>(le texte imprimé identifiant le champ,<br>"
                 f"ex : 'Loading' pour Port de chargement)</i><br>"
                 f"<small>{hint}</small><br>"
-                f"<i>Ou cliquez sur « ⏭ Ignorer » si ce champ n'existe pas dans ce format.</i>"
+                f"<i>Ou cliquez sur « Ignorer » si ce champ n'existe pas dans ce format.</i>"
             )
         else:
             self.instruction.setText(
-                f"<b>Étape {self.current_step + 1}/{len(TRAINER_FIELDS)} : "
+                f"<b>Étape {self.current_step + 1}/{len(TRAINER_FIELDS)} :"
                 f"{label}</b><br>"
-                f"✓ Libellé sélectionné : <b>'{self.label_word['text']}'</b><br>"
-                f"👉 Cliquez maintenant sur le mot <b>VALEUR</b><br>"
+                f"Libellé sélectionné : <b>'{self.label_word['text']}'</b><br>"
+                f"Cliquez maintenant sur le mot <b>VALEUR</b><br>"
                 f"<i>{hint}</i>"
             )
 
@@ -285,8 +285,8 @@ class FormatTrainerDialog(QDialog):
             self.rules[key] = rule
             # Mark item in field list
             item_text = (
-                f"✓  {TRAINER_FIELDS[self.current_step][1]}  "
-                f"→  '{self.label_word['text']}' [{rule['direction']}] "
+                f"{TRAINER_FIELDS[self.current_step][1]}"
+                f"→ '{self.label_word['text']}' [{rule['direction']}]"
                 f"'{item.word['text']}'"
             )
             self.field_list.item(self.current_step).setText(item_text)
@@ -319,7 +319,7 @@ class FormatTrainerDialog(QDialog):
             return
         key, label, _ = TRAINER_FIELDS[self.current_step]
         self.rules.pop(key, None)
-        self.field_list.item(self.current_step).setText(f"–  {label}  (ignoré)")
+        self.field_list.item(self.current_step).setText(f"– {label} (ignoré)")
         if self.label_rect:
             self.label_rect.mark_selected(False)
         self.label_word = None
@@ -338,7 +338,7 @@ class FormatTrainerDialog(QDialog):
         self.current_phase = "label"
         key, label, _ = TRAINER_FIELDS[self.current_step]
         self.rules.pop(key, None)
-        self.field_list.item(self.current_step).setText(f"○  {label}")
+        self.field_list.item(self.current_step).setText(label)
         self._refresh_instruction()
 
     # ----------------------------------------------------------

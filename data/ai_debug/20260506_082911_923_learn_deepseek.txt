@@ -1,0 +1,288 @@
+=== AI DEBUG LOG — LEARN:DEEPSEEK ===
+Timestamp : 2026-05-06T08:29:11
+Source    : C:\Users\m.taleb\Downloads\Manifests\KOTA SINGA EXP.pdf
+Extra     : {"provider": "deepseek", "model": "deepseek-reasoner", "image_attached": false}
+
+--- PROMPT SENT (44334 chars) ---
+Tu es L'EXPERT mondial en retro-ingenierie de manifestes maritimes (MSC, CMA-CGM, Maersk, Hapag-Lloyd, ONE, Evergreen, COSCO, etc.).
+
+Tu recois DEUX choses pour ce travail :
+  (A) Une IMAGE de la page 1 du manifeste (mise en page reelle, colonnes, alignement visuel).
+  (B) Le TEXTE BRUT exact extrait par pdfplumber (multi-pages).
+
+==> COMPRENDS BIEN : ton parser tournera sur le TEXTE (B), JAMAIS sur l'image.
+==> Mais l'image (A) te montre la STRUCTURE LOGIQUE pour que tu puisses
+    faire le pont avec ce que pdfplumber a produit (souvent tres different
+    visuellement : pdfplumber FUSIONNE souvent les colonnes sur UNE SEULE
+    LIGNE separees par des espaces, alors que visuellement elles paraissent
+    sur plusieurs lignes).
+
+Ta mission : produire (1) un JSON de classification, et (2) une FONCTION
+PYTHON `parse(text)` capable d'extraire toutes les lignes de cargaison
+LOCALEMENT (sans IA) lors des prochains documents identiques.
+
+REPONDS EXACTEMENT DANS CE FORMAT, RIEN AVANT, RIEN APRES :
+
+<<<JSON>>>
+{
+  "format_name": "MAJUSCULES (ex: MSC, CMA_CGM, MAERSK)",
+  "carrier_name": "nom complet du transporteur",
+  "signature_keywords": ["token1", "token2", "token3"],
+  "is_scanned": false,
+  "layout_analysis": "explique en 3-5 phrases comment tu vois le format dans l'image ET comment pdfplumber l'a converti en texte (col fusionnees ? ligne par ligne ? blocs ?). Cite des marqueurs concrets visibles dans le texte qui delimitent un BL et un conteneur.",
+  "extraction_strategy": "decris en 2-3 phrases l'algorithme exact que ton parse() va utiliser (split sur quoi, regex pour quoi, boucle imbriquee pour conteneurs ?).",
+  "shipowner": "valeur litterale (ex: MSC)",
+  "header_field_patterns": {
+    "vessel":            "regex avec UN groupe capture (...)",
+    "voyage":            "regex avec UN groupe capture (...)",
+    "date_of_arrival":   "regex avec UN groupe capture (...)",
+    "port_of_loading":   "regex avec UN groupe capture (...) — port d'embarquement (souvent 'PORT OF LOADING' / 'POL')",
+    "port_of_discharge": "regex avec UN groupe capture (...) — port de debarquement (souvent 'PORT OF DISCHARGE' / 'POD')",
+    "place_of_acceptance": "regex OU vide si non present — lieu de prise en charge",
+    "place_of_delivery":   "regex OU vide si non present — lieu de livraison final"
+  },
+  "spatial_template": {
+    "bl_marker_pattern":  "regex qui matche UN numero de BL (groupe 1) — ex 'ABJ\\d{9}' ou 'MEDU\\w+'",
+    "bl_split_strategy":  "marker | gap | page",
+    "container_marker":   "regex avec UN groupe capture pour le numero de conteneur — ex '\\(\\s*CN\\s*\\)\\s*([A-Z]{4}\\d{7})' ou 'CN:\\s*([A-Z]{4}\\d{7})'. Vide si pas de conteneurs.",
+    "weight_scope":       "per_bl | per_container | per_page (per_bl quand le poids dans le doc est un TOTAL par BL — c'est le cas le plus frequent)",
+    "field_rules": [
+      {
+        "field_name":   "shipper",
+        "anchor_text":  ["SHIPPER"],
+        "direction":    "below",
+        "max_distance": 80,
+        "x_tolerance":  60,
+        "max_words":    20,
+        "stop_at":      ["CONSIGNEE", "NOTIFY"],
+        "scope":        "bl_block"
+      }
+    ]
+  }
+}
+<<<END_JSON>>>
+<<<PYTHON>>>
+def parse(text: str) -> list:
+    rows = []
+    # ... ton code ici, utilise `re` directement (deja injecte, NE PAS importer) ...
+    return rows
+<<<END_PYTHON>>>
+
+REGLES POUR LE BLOC PYTHON :
+
+0. PRIORITE : LE TEMPLATE SPATIAL EST L'EXTRACTEUR PRIMAIRE.
+   Le bloc <<<JSON>>>.spatial_template est CONSOMME PAR UN MOTEUR
+   D'EXTRACTION SPATIAL (Python) deja implemente — tu CONFIGURES
+   ce moteur, tu ne le programmes pas. Le bloc <<<PYTHON>>> reste un
+   FILET DE SECURITE en cas d'echec du moteur spatial. Construis
+   spatial_template avec soin :
+   - bl_marker_pattern : la regex la plus specifique possible qui ne
+     matche QUE de vrais numeros de BL (un par BL).
+   - container_marker : prefixe le pattern avec une ANCRE textuelle
+     ((CN), CN:, etc.) pour eviter les faux positifs sur les BL eux-memes.
+   - weight_scope : choisis "per_bl" si le poids dans le doc est un
+     TOTAL pour tout le BL (cas le plus frequent : MSC, PIL, CMA-CGM).
+     Choisis "per_container" UNIQUEMENT si chaque conteneur affiche
+     son propre poids distinct dans le texte.
+   - field_rules : decrit chaque champ par sa relation spatiale
+     (anchor_text + direction + max_distance). Utilise scope="bl_block"
+     pour les champs qui varient d'un BL a l'autre (shipper, consignee,
+     weight, volume, seals, ports si specifiques au BL) et scope="page"
+     (defaut) pour les champs document-niveau (vessel, voyage, date).
+     Direction = "below" si la valeur est SOUS le label (typique pour
+     SHIPPER / CONSIGNEE multi-lignes), "right" si elle est A DROITE
+     (typique pour VESSEL: XXX, VOY: YYY).
+     stop_at = liste de mots qui terminent la capture (utile pour ne
+     pas continuer dans le label suivant).
+
+1. Le code DOIT definir UNE fonction `def parse(text: str) -> list:` qui retourne
+   une liste de dictionnaires, UN par ligne de cargaison (un par BL si vrac,
+   un par CONTENEUR si conteneurise — typique : MSC, CMA-CGM).
+
+2. Modules : `re` est DEJA INJECTE dans le namespace. N'ECRIS AUCUN `import`,
+   pas meme `import re`. Tout `import` fera planter le sandbox.
+
+3. ECRIS DU PYTHON 100% VALIDE :
+   - Indentation 4 espaces.
+   - PAS de commentaires C-style /* ... */ — utilise `#`.
+   - PAS de typedict, PAS d'annotations exotiques.
+   - Pas de f-string complexe inutile.
+
+4. Cles AUTORISEES (utilise UNIQUEMENT celles-ci, n'invente RIEN d'autre) :
+   bl_number, bl_type, container_number, container_type,
+   weight, weight_unit, pack_qty, pack_unit, volume, volume_unit,
+   seal1, seal2, seal3, shipper, consignee, notify, freight_forwarder,
+   port_of_loading, port_of_discharge, place_of_delivery, place_of_acceptance,
+   description, page.
+
+5. STRATEGIE GAGNANTE pour les manifestes MULTI-LIGNES :
+   - Decoupe d'abord en BLOCS-PAR-BL avec un marqueur stable et UNIQUE
+     visible dans le texte (ex: 'SH:' debut de ligne, 'B/L NR.', 'BL Nr.',
+     prefixe armateur MEDU/CMAU/MAEU). Choisis le marqueur qui apparait
+     EXACTEMENT une fois par BL dans le texte reel.
+   - Pour chaque bloc, extrait les champs sur le bloc entier (pas ligne-par-ligne).
+   - PATTERN RECOMMANDE pour les conteneurs (quand le format utilise `CN:`):
+     ```python
+     cn_iter = list(re.finditer(r'CN:([A-Z]{4}\d{7})', block))
+     for i, cm in enumerate(cn_iter):
+         cn_start = cm.start()
+         cn_end = cn_iter[i+1].start() if i+1 < len(cn_iter) else len(block)
+         cn_block = block[cn_start:cn_end]
+         container_number = cm.group(1)   # toujours juste, jamais de faux positif
+     ```
+     Si le format n'utilise pas `CN:`, cherche les conteneurs ISO directement
+     avec `re.finditer(r'\b([A-Z]{4}\d{7})\b', block)` en filtrant les
+     resultats qui ressemblent a des numeros BL (ex: si len > 11 chars autour).
+
+6. PIEGES CONNUS pdfplumber / OCR :
+   - Les COLONNES sont souvent FUSIONNEES sur la meme ligne, separees par
+     des espaces multiples. Ne suppose PAS un layout 'label\nvaleur'.
+   - Les en-tetes de colonne (ex: 'B/L NR.') matchent souvent ta regex AVANT
+     les vraies valeurs. Filtre-les explicitement (ex: skip si la valeur
+     capturee est 'NR.' ou un mot-cle, ou cherche au moins N caracteres).
+   - Les nombres peuvent contenir des virgules (ex: '22,754.000 kgs.'). 
+     Ta regex doit autoriser virgules ET points : `[\d,]+\.?\d*`.
+   - ATTENTION AUX FAUX POSITIFS DE NUMEROS DE CONTENEUR : les numeros BL
+     (ex: MEDUJ4270495) contiennent des sous-chaines [A-Z]{4}\d{7}
+     (ex: EDUJ4270495). N'utilise JAMAIS `[A-Z]{4}\d{7}` seul pour trouver
+     un conteneur. Utilise TOUJOURS le prefixe `CN:` comme ancre :
+       cn_matches = list(re.finditer(r'CN:([A-Z]{4}\d{7})', block))
+     ou, pour le premier conteneur inline sur la meme ligne que le BL :
+       re.search(r'CN:([A-Z]{4}\d{7})', first_line)
+     Cette approche est robuste car le manifeste delimite t
+... (36334 more chars truncated)
+
+--- RAW RESPONSE (5122 chars) ---
+<<<JSON>>>
+{
+  "format_name": "PIL_OUTWARD_FOREIGN_CARGO_MANIFEST",
+  "carrier_name": "Pacific International Lines (PIL)",
+  "signature_keywords": ["PIL", "OUTWARD FOREIGN CARGO MANIFEST", "KOTA SINGA", "(CN)", "ABJ"],
+  "is_scanned": true,
+  "layout_analysis": "Le manifeste PIL a une structure en deux colonnes visuellement : à gauche les parties (shipper, consignee, notify) et les numéros de BL ; à droite les conteneurs avec leurs scellés, puis la description et les poids. L'OCR fusionne souvent les colonnes sur une même ligne séparée par des espaces, mais les labels '1.Name of ship', '5a.Port of loading', etc. restent reconnaissables. Les marqueurs clés sont les numéros de BL débutant par 'ABJ' suivis de 9 chiffres, et les conteneurs préfixés par '(CN)'. Le poids total par BL est donné à la fin de chaque bloc BL sous la forme '1) X,XXX.XXX KGS'.",
+  "extraction_strategy": "1. Découper le texte en blocs en utilisant chaque occurrence du pattern 'ABJ{d{9}}' comme début de BL. 2. Pour chaque bloc, extraire tous les conteneurs avec la regex '\(\\s*CN\\s*\)\\s*([A-Z]{4}\\d{7})'. 3. Extraire le poids total avec '1\)\\s*([\\d,]+\\.\\d{3})\\s*KGS' et le volume avec '2\)\\s*([\\d,]+\\.\\d{3})\\s*CBM'. 4. Créer une ligne de cargaison par conteneur, en attribuant le même poids et volume à chaque conteneur du même BL.",
+  "shipowner": "PIL",
+  "header_field_patterns": {
+    "vessel": "MV\\s*«\\s*([^»]+)",
+    "voyage": "VOY\\.\\s*(\\S+)",
+    "date_of_arrival": "Sailing Date\\s+(\\d{4}-\\d{2}-\\d{2})",
+    "port_of_loading": "5a\\.Port\\s+of\\s+loading\\s+([\\w-]+)",
+    "port_of_discharge": "5b\\.Port\\s+of\\s+discharge\\s+([\\w-]+)",
+    "place_of_acceptance": "",
+    "place_of_delivery": "Final destination\\s+([\\w\\s-]+)"
+  },
+  "spatial_template": {
+    "bl_marker_pattern": "ABJ\\d{9}",
+    "bl_split_strategy": "marker",
+    "container_marker": "\\(\\s*CN\\s*\\)\\s*([A-Z]{4}\\d{7})",
+    "weight_scope": "per_bl",
+    "field_rules": [
+      {
+        "field_name": "shipper",
+        "anchor_text": ["1)"],
+        "direction": "below",
+        "max_distance": 200,
+        "x_tolerance": 100,
+        "max_words": 30,
+        "stop_at": ["2)", "B/L.", "Container No."],
+        "scope": "bl_block"
+      },
+      {
+        "field_name": "weight",
+        "anchor_text": ["1)"],
+        "direction": "right",
+        "max_distance": 80,
+        "x_tolerance": 30,
+        "max_words": 5,
+        "stop_at": ["KGS"],
+        "scope": "bl_block"
+      }
+    ]
+  }
+}
+<<<END_JSON>>>
+<<<PYTHON>>>
+def parse(text: str) -> list:
+    rows = []
+    # Pattern pour les numéros de BL (PIL: ABJ + 9 chiffres)
+    bl_pattern = r'ABJ\d{9}'
+    # Trouver tous les starts de BL dans l'ordre
+    bl_starts = [m.start() for m in re.finditer(bl_pattern, text)]
+    if not bl_starts:
+        return rows
+
+    # Découper le texte en blocs basés sur les positions des BL
+    for i, start in enumerate(bl_starts):
+        bl_number = text[start:start+12]  # ABJ + 9 digits = 12 chars
+        # Fin du bloc : début du prochain BL ou fin du texte
+        if i + 1 < len(bl_starts):
+            end = bl_starts[i+1]
+        else:
+            end = len(text)
+        block = text[start:end]
+
+        # Extraire tous les conteneurs (CN) dans ce bloc
+        cnt_pattern = r'\(\s*CN\s*\)\s*([A-Z]{4}\d{7})'
+        containers = re.findall(cnt_pattern, block)
+        if not containers:
+            continue  # pas de conteneur, ignorer (peut être un en-tête)
+
+        # Extraire le poids total (ligne "1) XXX.XXX KGS")
+        weight = None
+        w_match = re.search(r'1\)\s*([\d,]+\.\d{3})\s*KGS', block)
+        if w_match:
+            try:
+                weight = float(w_match.group(1).replace(',', ''))
+            except ValueError:
+                pass
+
+        # Extraire le volume total (ligne "2) XXX.XXX CBM")
+        volume = None
+        v_match = re.search(r'2\)\s*([\d,]+\.\d{3})\s*CBM', block)
+        if v_match:
+            try:
+                volume = float(v_match.group(1).replace(',', ''))
+            except ValueError:
+                pass
+
+        # Créer une ligne par conteneur avec les mêmes poids/volume
+        for cnt in containers:
+            rows.append({
+                'bl_number': bl_number,
+                'container_number': cnt,
+                'weight': weight,
+                'volume': volume,
+                'bl_type': '', # optionnel
+                'container_type': '',
+                'weight_unit': 'KGS' if weight is not None else '',
+                'volume_unit': 'CBM' if volume is not None else '',
+                'shipper': '',
+                'consignee': '',
+                'notify': '',
+                'freight_forwarder': '',
+                'port_of_loading': '',
+                'port_of_discharge': '',
+                'place_of_delivery': '',
+                'place_of_acceptance': '',
+                'description': '',
+                'pack_qty': None,
+                'pack_unit': '',
+                'seal1': '',
+                'seal2': '',
+                'seal3': '',
+                'page': ''
+            })
+
+    return rows
+<<<END_PYTHON>>>
+
+--- PARSED ---
+{
+  "meta": {
+    "vessel": "MV\\\\s*«\\\\s*([^»]+)",
+    "voyage": "VOY\\\\.\\\\s*(\\\\S+)",
+    "date_of_arrival": "Sailing Date\\\\s+(\\\\d{4}-\\\\d{2}-\\\\d{2})",
+    "shipowner": "PIL"
+  },
+  "code_chars": 2585
+}

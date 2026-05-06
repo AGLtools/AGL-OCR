@@ -105,12 +105,229 @@ def save_learned(
         "extraction_hints": extraction_hints or existing.get("extraction_hints", ""),
         "example_rows": example_rows if example_rows is not None else existing.get("example_rows", []),
         "parse_template": final_template,
+        # Preserve any user feedback already attached to this format.
+        "feedback": existing.get("feedback", []),
         "created_at": existing.get("created_at") or datetime.now().isoformat(timespec="seconds"),
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         "samples": int(existing.get("samples", 0)) + 1,
     }
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def add_feedback(
+    name: str,
+    text: str,
+    *,
+    doc_name: str = "",
+    rows_snapshot: Optional[List[Dict]] = None,
+    problem_indexes: Optional[List[int]] = None,
+    image_paths: Optional[List[str]] = None,
+    diffs: Optional[List[Dict]] = None,
+) -> bool:
+    """Append a feedback entry to a learned format.
+
+    Beyond a free-text comment, callers can attach:
+      * ``diffs``: list of :class:`SpatialDiff` dicts — STRUCTURED evidence
+        that replaces prose + screenshots. Cheap to send back to the LLM.
+      * ``rows_snapshot``: full extraction (legacy).
+      * ``problem_indexes``: indexes into ``rows_snapshot`` (legacy).
+      * ``image_paths``: PNG snapshots (legacy, deprecated — kept for
+        backward compatibility but no longer produced by the UI).
+    """
+    if not (text and text.strip()) and not diffs:
+        return False
+    path = _dir() / f"{_slug(name)}.json"
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    feedback = data.get("feedback") or []
+    entry: Dict = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "doc_name": doc_name or "",
+        "text": (text or "").strip(),
+    }
+    if diffs:
+        # Persist structured spatial evidence. This is the new primary
+        # signal — re-learning calls only need this, not the screenshots.
+        entry["diffs"] = list(diffs)
+    if rows_snapshot:
+        # Strip internal flags before persisting
+        clean = [
+            {k: v for k, v in r.items() if not str(k).startswith("_")}
+            for r in rows_snapshot
+        ]
+        entry["rows_snapshot"] = clean
+    if problem_indexes:
+        entry["problem_indexes"] = list(problem_indexes)
+    if image_paths:
+        entry["image_paths"] = [str(p) for p in image_paths]
+    feedback.append(entry)
+    # Keep only the last 10 entries, deduplicated by the first 80 chars
+    # of the comment text. Most-recent wins.
+    seen = set()
+    kept: List[Dict] = []
+    for fb in reversed(feedback):
+        key = (fb.get("text", "") or "")[:80]
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(fb)
+        if len(kept) >= 10:
+            break
+    data["feedback"] = list(reversed(kept))
+    data["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
+def save_feedback_image(name: str, image_bytes: bytes, label: str = "") -> str:
+    """Persist a PNG snapshot under ``<learned_formats>/<slug>_attachments/``.
+
+    Returns the absolute file path (string). Used by the feedback dialog
+    to attach annotated page snapshots to a feedback entry.
+    """
+    slug = _slug(name)
+    folder = _dir() / f"{slug}_attachments"
+    folder.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    safe_label = re.sub(r"[^A-Za-z0-9_-]+", "_", label or "page").strip("_") or "page"
+    p = folder / f"{ts}_{safe_label}.png"
+    p.write_bytes(image_bytes)
+    return str(p)
+
+
+def get_feedback_text(name: str) -> str:
+    """Return all feedback entries concatenated as a prompt-ready block.
+
+    Includes the free-text comment, plus — if attached — a compact JSON
+    rendering of the user-flagged problem rows and any extra metadata
+    (page snapshots are passed separately to multimodal calls).
+    """
+    path = _dir() / f"{_slug(name)}.json"
+    if not path.exists():
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    fb = data.get("feedback") or []
+    if not fb:
+        return ""
+    # Lazy import to avoid a circular dependency on startup.
+    try:
+        from .spatial_diff import SpatialDiff, format_diff_as_evidence_block
+    except Exception:
+        SpatialDiff = None  # type: ignore
+        format_diff_as_evidence_block = None  # type: ignore
+    lines = []
+    for i, entry in enumerate(fb, 1):
+        ts = entry.get("timestamp", "")
+        doc = entry.get("doc_name", "")
+        lines.append(f"[{i}] {ts} ({doc}): {entry.get('text', '').strip()}")
+        # Preferred path : structured spatial diffs.
+        diffs_raw = entry.get("diffs") or []
+        if diffs_raw and SpatialDiff is not None and format_diff_as_evidence_block is not None:
+            try:
+                diffs = [SpatialDiff.from_dict(d) for d in diffs_raw]
+                ev = format_diff_as_evidence_block(diffs, max_chars=1200)
+                if ev:
+                    lines.append(ev)
+                continue
+            except Exception:
+                pass
+        # Legacy fallback : flagged rows summary.
+        rows = entry.get("rows_snapshot") or []
+        idx = entry.get("problem_indexes") or []
+        if rows and idx:
+            problem_rows = [rows[k] for k in idx if 0 <= k < len(rows)]
+            if problem_rows:
+                shown = problem_rows[:8]
+                lines.append(
+                    f"    Lignes problematiques signalees ({len(problem_rows)}, "
+                    f"max 8 affichees) :"
+                )
+                for pr in shown:
+                    bits = ", ".join(
+                        f"{k}={str(v)[:40]}" for k, v in pr.items()
+                        if str(v).strip() and not str(k).startswith("_")
+                    )
+                    lines.append(f"      - {bits}")
+        elif rows:
+            lines.append(
+                f"    (Extraction complete attachee : {len(rows)} ligne(s).)"
+            )
+        if entry.get("image_paths"):
+            lines.append(
+                f"    Captures jointes (legacy) : {len(entry['image_paths'])} image(s)."
+            )
+    return "\n".join(lines)
+
+
+def get_feedback_entries(name: str) -> List[Dict]:
+    """Return raw feedback list (for dialogs that need image_paths, etc.)."""
+    path = _dir() / f"{_slug(name)}.json"
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return list(data.get("feedback") or [])
+
+
+def update_format(name: str, **fields) -> bool:
+    """Update arbitrary top-level fields of a learned format (dev tool)."""
+    path = _dir() / f"{_slug(name)}.json"
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    for k, v in fields.items():
+        data[k] = v
+    data["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
+def purge_old_attachments(max_age_days: int = 14) -> int:
+    """Delete legacy *_attachments PNG files older than ``max_age_days``.
+
+    Spatial diffs replaced screenshots, so the attachments folder shrinks
+    over time. Returns the number of files removed.
+    """
+    import time
+    cutoff = time.time() - max_age_days * 86400
+    removed = 0
+    base = _dir()
+    if not base.exists():
+        return 0
+    for folder in base.glob("*_attachments"):
+        if not folder.is_dir():
+            continue
+        for f in folder.rglob("*"):
+            try:
+                if f.is_file() and f.stat().st_mtime < cutoff:
+                    f.unlink(missing_ok=True)
+                    removed += 1
+            except OSError:
+                continue
+        # Try to drop the folder if it's now empty.
+        try:
+            next(folder.iterdir())
+        except StopIteration:
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+        except OSError:
+            pass
+    return removed
 
 
 def delete_learned(name: str) -> bool:

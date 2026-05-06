@@ -37,7 +37,11 @@ def log_call(
     """Write a debug entry. Returns the file path."""
     global _LAST_PATH
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    path = _dir() / f"{ts}_{kind}.txt"
+    # Sanitize kind for Windows filenames: ':' creates an NTFS alternate
+    # data stream, making the visible file appear empty (0 bytes) while the
+    # actual content lives in a hidden stream.
+    safe_kind = "".join(c if c.isalnum() or c in "._-" else "_" for c in kind)
+    path = _dir() / f"{ts}_{safe_kind}.txt"
     parts = []
     parts.append(f"=== AI DEBUG LOG — {kind.upper()} ===")
     parts.append(f"Timestamp : {datetime.now().isoformat(timespec='seconds')}")

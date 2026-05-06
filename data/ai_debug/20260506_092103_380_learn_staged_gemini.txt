@@ -1,0 +1,82 @@
+=== AI DEBUG LOG — LEARN_STAGED:GEMINI ===
+Timestamp : 2026-05-06T09:21:03
+Source    : C:\Users\m.taleb\Downloads\Manifests\KOTA SINGA EXP.pdf
+Extra     : {"strategy": "discover", "fingerprint": {"total_bls": 123, "total_containers": 106, "weight_scope": "per_bl", "is_scanned": true}}
+
+--- PROMPT SENT (3315 chars) ---
+Tu CONFIGURES un moteur d'extraction spatial deja
+implemente. Tu ne programmes PAS. Tu retournes UNIQUEMENT un JSON
+SpatialTemplate. Aucune explication, aucun bloc Python.
+
+## FAITS PRE-DETECTES (NE PAS REMETTRE EN CAUSE) ##
+- carrier_hint     : CMA_CGM
+- bl_pattern       : \b[A-Z]{2,3}\d{7,12}\b (matche 123x)
+- container_marker : (CN)
+- weight_scope     : per_bl
+- total_bls        : 123   total_containers : 106
+
+EXEMPLES DE BLOCS BL REELS (extraits du document):
+ABJ600008800
+(MN).
+(CN) GLDU9636329
+(CY/CY) - D2
+--- BLOC ---
+(SN) SF1399940/1399940
+(CN) PCIU0001291
+(CY/CY)-D2
+--- BLOC ---
+(SN) SF1399931
+(CN) PCIU0043888
+(CY/CY) - D2
+
+REPONDS EXACTEMENT DANS CE FORMAT (rien avant, rien apres) :
+<<<JSON>>>
+{
+  "format_name":   "MAJUSCULES (ex: PIL, MSC, CMA_CGM)",
+  "carrier_name": "nom complet du transporteur",
+  "signature_keywords": ["3-6 tokens specifiques au document"],
+  "is_scanned": true,
+  "shipowner": "valeur litterale",
+  "header_field_patterns": {
+    "vessel":            "regex avec UN groupe (...)",
+    "voyage":            "regex avec UN groupe (...)",
+    "date_of_arrival":   "regex avec UN groupe (...)",
+    "port_of_loading":   "regex avec UN groupe (...) ou \"\"",
+    "port_of_discharge": "regex avec UN groupe (...) ou \"\""
+  },
+  "spatial_template": {
+    "bl_marker_pattern":  "regex BL (un groupe). PRENDS la valeur pre-detectee si fournie.",
+    "bl_split_strategy":  "marker",
+    "container_marker":   "regex avec UN groupe pour le n° conteneur (ou \"\" si vrac).",
+    "weight_scope":       "PRENDS la valeur pre-detectee. NE LA CHANGE PAS.",
+    "field_rules": [
+      {"field_name": "shipper",           "anchor_text": ["SHIPPER"],   "direction": "below", "max_distance": 80,  "stop_at": ["CONSIGNEE","NOTIFY"], "scope": "bl_block"},
+      {"field_name": "consignee",         "anchor_text": ["CONSIGNEE"], "direction": "below", "max_distance": 80,  "stop_at": ["NOTIFY","DESCRIPTION"], "scope": "bl_block"},
+      {"field_name": "port_of_loading",   "anchor_text": ["Port","of","loading"],   "direction": "right", "max_distance": 250, "scope": "page"},
+      {"field_name": "port_of_discharge", "anchor_text": ["Port","of","discharge"], "direction": "right", "max_distance": 250, "scope": "page"},
+      {"field_name": "weight",            "anchor_text": ["WEIGHT"],    "direction": "right", "max_distance": 150, "scope": "bl_block"}
+    ]
+  }
+}
+<<<END_JSON>>>
+
+REGLES IMPERATIVES :
+- bl_marker_pattern, container_marker, weight_scope : reprends EXACTEMENT
+  les valeurs pre-detectees ci-dessus si elles sont fournies. Ne les
+  remets PAS en cause — elles ont ete validees par comptage sur le
+  document complet.
+- field_rules : au minimum shipper, consignee, weight, port_of_loading,
+  port_of_discharge. Ajoute volume / pack_qty / seals / notify si visibles
+  dans les blocs exemples.
+- direction = "below" si la valeur est SOUS le label (typique SHIPPER /
+  CONSIGNEE multi-lignes). "right" si A DROITE (typique VESSEL: XXX).
+- scope = "bl_block" pour les champs qui varient par BL (shipper, weight,
+  ports specifiques au BL). scope = "page" pour les champs document-niveau
+  (vessel, voyage, date).
+- N'INVENTE rien : si un champ n'est pas dans les blocs exemples, ne
+  l'inclus pas. Mieux vaut une regle manquante (le moteur fera fallback)
+  qu'une regle erronee.
+
+
+--- PARSED ---
+{}

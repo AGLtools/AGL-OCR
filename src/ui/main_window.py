@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget,
     QListWidgetItem, QLineEdit, QMessageBox, QInputDialog, QComboBox,
     QGroupBox, QFormLayout, QSplitter, QApplication, QDialog, QPlainTextEdit,
-    QToolButton, QMenu,
+    QToolButton, QMenu, QProgressBar,
 )
 
 from ..ocr_engine import OCREngine, Page, Token
@@ -42,6 +42,12 @@ AGL_BLUE      = "#1E90E0"
 AGL_BLUE_DARK = "#1670B0"
 AGL_BG        = "#F4F7FB"
 AGL_TEXT      = "#1B2A3D"
+AGL_GOLD      = "#D4A437"
+AGL_GOLD_DARK = "#A87E1F"
+AGL_GOLD_BG   = "#FFF7E0"
+AGL_SUCCESS   = "#2E7D32"
+AGL_WARN      = "#C28000"
+AGL_DANGER    = "#B23A48"
 
 AGL_STYLE = f"""
 QMainWindow, QDialog {{ background: {AGL_BG}; color: {AGL_TEXT}; }}
@@ -68,13 +74,129 @@ QGroupBox::title {{
     subcontrol-origin: margin; left: 12px; padding: 0 6px;
     background: {AGL_BG};
 }}
-QPushButton {{
+QPushButton, QToolButton#primaryToolButton {{
     background: white; border: 1px solid #C8D2E0; border-radius: 4px;
-    padding: 6px 12px; color: {AGL_TEXT};
+    padding: 7px 14px; color: {AGL_TEXT};
 }}
-QPushButton:hover {{ background: #EAF1FA; border-color: {AGL_BLUE}; }}
-QPushButton:pressed {{ background: #D5E5F5; }}
+QPushButton:hover, QToolButton#primaryToolButton:hover {{
+    background: #EAF1FA; border-color: {AGL_BLUE};
+}}
+QPushButton:pressed, QToolButton#primaryToolButton:pressed {{ background: #D5E5F5; }}
 QPushButton:disabled {{ color: #999; background: #F0F0F0; }}
+
+/* Primary action: AGL bright blue */
+QPushButton[agl="primary"], QToolButton#primaryToolButton[agl="primary"] {{
+    background: {AGL_BLUE}; color: white; border: 1px solid {AGL_BLUE_DARK};
+    font-weight: 600;
+}}
+QPushButton[agl="primary"]:hover, QToolButton#primaryToolButton[agl="primary"]:hover {{
+    background: {AGL_BLUE_DARK}; border-color: {AGL_NAVY};
+}}
+QPushButton[agl="primary"]:pressed, QToolButton#primaryToolButton[agl="primary"]:pressed {{
+    background: {AGL_NAVY};
+}}
+
+/* Accent action: AGL navy */
+QPushButton[agl="accent"] {{
+    background: {AGL_NAVY}; color: white; border: 1px solid {AGL_NAVY};
+    font-weight: 600;
+}}
+QPushButton[agl="accent"]:hover {{ background: #14315A; }}
+QPushButton[agl="accent"]:pressed {{ background: #0E2244; }}
+
+/* Subtle action: outlined navy */
+QPushButton[agl="ghost"] {{
+    background: white; color: {AGL_NAVY}; border: 1px solid {AGL_NAVY};
+    font-weight: 600;
+}}
+QPushButton[agl="ghost"]:hover {{ background: #EAF1FA; }}
+
+/* Premium gold action — for the most important commands */
+QPushButton[agl="gold"], QToolButton#primaryToolButton[agl="gold"] {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #E9BC4D, stop:1 {AGL_GOLD});
+    color: #3A2A05;
+    border: 1px solid {AGL_GOLD_DARK};
+    border-radius: 4px;
+    padding: 7px 16px;
+    font-weight: 700;
+}}
+QPushButton[agl="gold"]:hover, QToolButton#primaryToolButton[agl="gold"]:hover {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #F2C95E, stop:1 #C49422);
+    border-color: #7A5A14;
+}}
+QPushButton[agl="gold"]:pressed, QToolButton#primaryToolButton[agl="gold"]:pressed {{
+    background: {AGL_GOLD_DARK}; color: white;
+}}
+
+/* Status-tinted variants */
+QPushButton[agl="success"] {{
+    background: #E6F4EA; color: {AGL_SUCCESS};
+    border: 1px solid #9DD4A4; font-weight: 600;
+}}
+QPushButton[agl="success"]:hover {{ background: #D2EAD9; }}
+QPushButton[agl="danger"] {{
+    background: #FAE3E5; color: {AGL_DANGER};
+    border: 1px solid #E8B0B5; font-weight: 600;
+}}
+QPushButton[agl="danger"]:hover {{ background: #F5CDD0; }}
+
+QMenuBar {{
+    background: #FFFFFF; color: {AGL_NAVY};
+    border-bottom: 1px solid #D8E0EC;
+    padding: 2px 4px;
+}}
+QMenuBar::item {{ padding: 6px 12px; background: transparent; }}
+QMenuBar::item:selected {{ background: #EAF1FA; border-radius: 3px; }}
+QMenu {{ background: white; border: 1px solid #C8D2E0; padding: 4px; }}
+QMenu::item {{ padding: 6px 24px 6px 16px; border-radius: 3px; }}
+QMenu::item:selected {{ background: {AGL_BLUE}; color: white; }}
+QMenu::separator {{ height: 1px; background: #D8E0EC; margin: 4px 0; }}
+
+QHeaderView::section {{
+    background: {AGL_NAVY}; color: white; padding: 6px 8px;
+    border: none; border-right: 1px solid #2A5290;
+    font-weight: 600;
+}}
+QHeaderView::section:hover {{ background: {AGL_BLUE_DARK}; }}
+QTableWidget {{
+    background: white; gridline-color: #E0E6EF;
+    selection-background-color: #DCE9F7; selection-color: {AGL_TEXT};
+    border: 1px solid #C8D2E0; border-radius: 4px;
+}}
+QTableWidget::item:selected {{ background: #DCE9F7; color: {AGL_TEXT}; }}
+QCheckBox {{ color: {AGL_TEXT}; }}
+QCheckBox::indicator {{
+    width: 16px; height: 16px; border: 1px solid #C8D2E0;
+    background: white; border-radius: 3px;
+}}
+QCheckBox::indicator:checked {{
+    background: {AGL_BLUE}; border-color: {AGL_BLUE_DARK};
+    image: none;
+}}
+QTabBar::tab {{
+    background: #E8EDF4; color: {AGL_TEXT}; padding: 7px 14px;
+    border: 1px solid #C8D2E0; border-bottom: none;
+    border-top-left-radius: 4px; border-top-right-radius: 4px;
+}}
+QTabBar::tab:selected {{
+    background: white; color: {AGL_NAVY}; font-weight: 600;
+    border-bottom: 2px solid {AGL_GOLD};
+}}
+QPlainTextEdit, QTextEdit {{
+    background: white; border: 1px solid #C8D2E0; border-radius: 4px;
+    padding: 4px;
+}}
+QPlainTextEdit:focus, QTextEdit:focus {{ border-color: {AGL_BLUE}; }}
+
+QProgressBar {{
+    background: white; border: 1px solid #C8D2E0; border-radius: 4px;
+    text-align: center; color: {AGL_TEXT}; height: 14px;
+}}
+QProgressBar::chunk {{
+    background: {AGL_BLUE}; border-radius: 3px;
+}}
 QListWidget, QLineEdit, QComboBox {{
     background: white; border: 1px solid #C8D2E0; border-radius: 4px; padding: 4px;
 }}
@@ -266,6 +388,10 @@ class MainWindow(QMainWindow):
         # When set, _on_ocr_done will auto-trigger _parse_manifest after rendering.
         # Used when a learned format with a usable parse_template is detected at open.
         self._auto_parse_after_open: Optional[Dict] = None
+        # Tracks the learned format that produced the current rows (if any).
+        # Read by ManifestReviewDialog → FeedbackDialog so feedback can be
+        # attached to the right format without re-detection.
+        self._active_learned_format: Optional[Dict] = None
         # Background worker for progressive page loading (learned-format fast path)
         self._page_load_worker: Optional[PageLoadWorker] = None
 
@@ -290,21 +416,21 @@ class MainWindow(QMainWindow):
         rlay.setContentsMargins(8, 8, 8, 8)
 
         # --- Field panel ---
-        field_group = QGroupBox("Champs  (cliquez un champ, puis un mot ou dessinez une zone)")
+        field_group = QGroupBox("Champs (cliquez un champ, puis un mot ou dessinez une zone)")
         flay = QVBoxLayout(field_group)
         self.field_list = QListWidget()
         self.field_list.itemClicked.connect(self._on_field_selected)
         for f in self.fields_def:
-            it = QListWidgetItem(f"○  {f['label']}")
+            it = QListWidgetItem(f["label"])
             it.setData(Qt.UserRole, f["key"])
             self.field_list.addItem(it)
         flay.addWidget(self.field_list)
 
         btn_row = QHBoxLayout()
-        self.btn_draw = QPushButton("✏ Dessiner une zone pour le champ")
+        self.btn_draw = QPushButton("Dessiner une zone pour le champ")
         self.btn_draw.setCheckable(True)
         self.btn_draw.toggled.connect(self.canvas.set_drawing_mode)
-        self.btn_clear_field = QPushButton("✖ Effacer")
+        self.btn_clear_field = QPushButton("Effacer")
         self.btn_clear_field.clicked.connect(self._clear_selected_field)
         btn_row.addWidget(self.btn_draw)
         btn_row.addWidget(self.btn_clear_field)
@@ -322,7 +448,7 @@ class MainWindow(QMainWindow):
         rlay.addWidget(field_group, 3)
 
         # --- Template panel ---
-        tpl_group = QGroupBox("Modèles  (mémoire cartographique)")
+        tpl_group = QGroupBox("Modèles (mémoire cartographique)")
         tlay = QVBoxLayout(tpl_group)
         self.tpl_status = QLabel("Aucun modèle actif.")
         self.tpl_status.setStyleSheet("color:#555;")
@@ -333,11 +459,11 @@ class MainWindow(QMainWindow):
         tlay.addWidget(self.tpl_list)
 
         tbtns = QHBoxLayout()
-        self.btn_save_tpl = QPushButton("💾 Enregistrer comme modèle")
+        self.btn_save_tpl = QPushButton("Enregistrer comme modèle")
         self.btn_save_tpl.clicked.connect(self._save_template)
-        self.btn_apply_tpl = QPushButton("▶ Appliquer la sélection")
+        self.btn_apply_tpl = QPushButton("Appliquer la sélection")
         self.btn_apply_tpl.clicked.connect(self._apply_selected_template)
-        self.btn_del_tpl = QPushButton("🗑 Supprimer")
+        self.btn_del_tpl = QPushButton("Supprimer")
         self.btn_del_tpl.clicked.connect(self._delete_selected_template)
         tbtns.addWidget(self.btn_save_tpl)
         tbtns.addWidget(self.btn_apply_tpl)
@@ -349,14 +475,15 @@ class MainWindow(QMainWindow):
         # --- Action buttons ---
         action_group = QGroupBox("Actions sur le document")
         alay = QVBoxLayout(action_group)
-        self.btn_validate = QPushButton("✓ Valider et ajouter cette page à la file")
+        self.btn_validate = QPushButton("Valider et ajouter cette page à la file")
         self.btn_validate.clicked.connect(self._validate_document)
-        self.btn_process_all = QPushButton("▶▶ Traiter TOUTES les pages avec le modèle actif")
-        self.btn_process_all.setStyleSheet("font-weight: bold; background-color: #cce5ff;")
+        self.btn_process_all = QPushButton("Traiter toutes les pages avec le modèle actif")
+        self.btn_process_all.setProperty("agl", "primary")
         self.btn_process_all.clicked.connect(self._process_all_pages)
         self.btn_parse_manifest = QToolButton()
-        self.btn_parse_manifest.setText("🔍 Analyse intelligente du manifeste ▾")
-        self.btn_parse_manifest.setStyleSheet("font-weight: bold; background-color: #d4edda; padding: 6px;")
+        self.btn_parse_manifest.setText("Analyse intelligente du manifeste")
+        self.btn_parse_manifest.setObjectName("primaryToolButton")
+        self.btn_parse_manifest.setProperty("agl", "primary")
         self.btn_parse_manifest.setToolTip(
             "Cliquez pour auto-détection, ou ouvrez le menu pour choisir\n"
             "un parseur spécifique parmi les formats déjà appris."
@@ -369,36 +496,34 @@ class MainWindow(QMainWindow):
         self._parse_menu.aboutToShow.connect(self._rebuild_parse_menu)
         self.btn_parse_manifest.setMenu(self._parse_menu)
         # AI extraction — universal fallback for any unknown format
-        self.btn_ai_extract = QPushButton("🤖 Extraction IA universelle (Gemini)")
-        self.btn_ai_extract.setStyleSheet(
-            "font-weight: bold; background-color: #e7d4ff; color: #4a148c;"
-        )
+        self.btn_ai_extract = QPushButton("Extraction IA universelle (Gemini)")
+        self.btn_ai_extract.setProperty("agl", "accent")
         self.btn_ai_extract.setToolTip(
             "Extraction par IA Google Gemini — fonctionne sur N'IMPORTE QUEL format\n"
             "de manifeste, scanné ou non. Nécessite une clé API Gemini gratuite.\n\n"
-            "⏱ Durée : 5-30 s par document."
+            "Durée : 5-30 s par document."
         )
         self.btn_ai_extract.clicked.connect(self._ai_extract)
-        self.btn_ai_learn = QPushButton("🎓 Apprendre ce format à l'IA")
+        self.btn_ai_learn = QPushButton("Apprendre ce format à l'IA")
+        self.btn_ai_learn.setProperty("agl", "gold")
         self.btn_ai_learn.setToolTip(
             "Demande à l'IA d'analyser ce document et d'enregistrer son format\n"
             "pour reconnaissance automatique à l'avenir."
         )
         self.btn_ai_learn.clicked.connect(self._ai_learn_format)
         # Re-open last review without re-running extraction
-        self.btn_reopen_review = QPushButton("📋 Ré-ouvrir la dernière revue")
-        self.btn_reopen_review.setStyleSheet(
-            "font-weight: bold; background-color: #fff3cd; color: #856404;"
-        )
+        self.btn_reopen_review = QPushButton("Ré-ouvrir la dernière revue")
+        self.btn_reopen_review.setProperty("agl", "ghost")
         self.btn_reopen_review.setToolTip(
             "Réouvre la fenêtre de révision du dernier résultat extrait\n"
             "sans relancer Gemini ni le parser."
         )
         self.btn_reopen_review.setEnabled(False)
         self.btn_reopen_review.clicked.connect(self._reopen_review)
-        self.btn_export = QPushButton("⬇ Exporter la file vers Excel")
+        self.btn_export = QPushButton("Exporter la file vers Excel")
         self.btn_export.clicked.connect(self._export_excel)
-        self.btn_export_midas = QPushButton("📊 Exporter au format MIDAS (43 colonnes)")
+        self.btn_export_midas = QPushButton("Exporter au format MIDAS (43 colonnes)")
+        self.btn_export_midas.setProperty("agl", "gold")
         self.btn_export_midas.setToolTip(
             "Exporte la file au format MIDAS prêt pour saisie : 42 colonnes plates\n"
             "(Numéro escale et Index laissés vides — équipe d'intégration)."
@@ -427,15 +552,15 @@ class MainWindow(QMainWindow):
         tb = QToolBar("Principale")
         tb.setMovable(False)
         self.addToolBar(tb)
-        act_open = QAction("📂  Ouvrir un document", self)
+        act_open = QAction("Ouvrir un document", self)
         act_open.triggered.connect(self._open_document)
         tb.addAction(act_open)
         tb.addSeparator()
-        act_auto = QAction("🪄  Lancer la cartographie automatique", self)
+        act_auto = QAction("Lancer la cartographie automatique", self)
         act_auto.triggered.connect(self._run_auto_mapping)
         tb.addAction(act_auto)
         tb.addSeparator()
-        act_teach = QAction("🎓  Apprendre un nouveau format", self)
+        act_teach = QAction("Apprendre un nouveau format", self)
         act_teach.setToolTip(
             "Assistant : affichez le document, cliquez sur chaque LIBELLÉ\n"
             "puis sa VALEUR. L'application apprend la règle spatiale et\n"
@@ -446,14 +571,14 @@ class MainWindow(QMainWindow):
         tb.addAction(act_teach)
         tb.addSeparator()
         # AI quick-action toolbar buttons
-        act_ai = QAction("🤖  Extraction IA", self)
+        act_ai = QAction("Extraction IA", self)
         act_ai.setToolTip("Extraction universelle par IA Gemini — fonctionne sur tout format.")
         act_ai.triggered.connect(self._ai_extract)
         tb.addAction(act_ai)
         tb.addSeparator()
 
         # Cancel button — only enabled while an AI/OCR worker is running
-        self.act_cancel = QAction("🛑  Annuler IA", self)
+        self.act_cancel = QAction("Annuler IA", self)
         self.act_cancel.setToolTip("Interrompre l'extraction IA / l'apprentissage / l'OCR Cloud Vision en cours.")
         self.act_cancel.triggered.connect(self._cancel_ai)
         self.act_cancel.setEnabled(False)
@@ -461,31 +586,61 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         self.page_combo = QComboBox()
         self.page_combo.currentIndexChanged.connect(self._switch_page)
-        tb.addWidget(QLabel("  Page : "))
+        tb.addWidget(QLabel("Page :"))
         tb.addWidget(self.page_combo)
 
         # Menu bar — IA settings
         mb = self.menuBar()
         m_ai = mb.addMenu("&IA")
-        a_cfg = QAction("⚙ Configurer la clé API Gemini…", self)
+        a_cfg = QAction("Configurer la clé API Gemini…", self)
         a_cfg.triggered.connect(self._ai_configure)
         m_ai.addAction(a_cfg)
-        a_formats = QAction("📚 Gérer les formats appris…", self)
+        a_formats = QAction("Gérer les formats appris…", self)
         a_formats.triggered.connect(self._ai_manage_formats)
         m_ai.addAction(a_formats)
         m_ai.addSeparator()
-        a_extract = QAction("🤖 Extraction IA du document courant", self)
+        a_extract = QAction("Extraction IA du document courant", self)
         a_extract.triggered.connect(self._ai_extract)
         m_ai.addAction(a_extract)
-        a_learn = QAction("🎓 Apprendre le format du document courant", self)
+        a_learn = QAction("Apprendre le format du document courant", self)
         a_learn.triggered.connect(self._ai_learn_format)
         m_ai.addAction(a_learn)
         m_ai.addSeparator()
-        a_log = QAction("🐞 Voir le dernier log IA…", self)
+        a_log = QAction("Voir le dernier log IA…", self)
         a_log.triggered.connect(self._ai_show_last_log)
         m_ai.addAction(a_log)
+        a_dev = QAction("Outils développeur…", self)
+        a_dev.triggered.connect(self._ai_open_dev_tools)
+        m_ai.addAction(a_dev)
 
         self.setStatusBar(QStatusBar())
+        # Persistent busy indicator (indeterminate progress bar) — visible
+        # whenever a background worker is active. Lives in the status bar.
+        self._busy_bar = QProgressBar()
+        self._busy_bar.setRange(0, 0)               # indeterminate (marquee)
+        self._busy_bar.setTextVisible(False)
+        self._busy_bar.setFixedWidth(180)
+        self._busy_bar.setFixedHeight(14)
+        self._busy_bar.hide()
+        self.statusBar().addPermanentWidget(self._busy_bar)
+
+    # ============================================================
+    # Busy / loading indicator
+    # ============================================================
+    def _set_busy(self, active: bool, message: Optional[str] = None) -> None:
+        """Show or hide the indeterminate progress bar in the status bar.
+
+        Pair every `_set_busy(True, ...)` with a `_set_busy(False)` in the
+        worker's finished/failed/cancelled handlers.
+        """
+        if active:
+            self._busy_bar.show()
+            if message:
+                self.statusBar().showMessage(message)
+        else:
+            self._busy_bar.hide()
+            if message:
+                self.statusBar().showMessage(message)
 
     # ============================================================
     # Document loading
@@ -583,16 +738,38 @@ class MainWindow(QMainWindow):
             self._preview_worker.start()
             return
 
-        # Scanned PDF (no embedded text) or image: full render + OCR pipeline
+        # Scanned PDF (no embedded text) or image: render page 1 as quick preview,
+        # then let the user decide whether to OCR (and which engine) before learning.
         self.manifest_mode = False
-        self.statusBar().showMessage(
-            f"Rendu des pages de {path_obj.name}… (peut prendre du temps pour les gros PDF)"
-        )
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.worker = OCRWorker(self.engine, str(path_obj))
-        self.worker.finished_ok.connect(self._on_ocr_done)
-        self.worker.failed.connect(self._on_ocr_failed)
-        self.worker.start()
+        self.source_path = path_obj
+        if path_obj.suffix.lower() == ".pdf":
+            try:
+                import pdfplumber as _plb
+                with _plb.open(str(path_obj)) as _pdf:
+                    total_pages = len(_pdf.pages)
+            except Exception:
+                total_pages = 1
+            self.statusBar().showMessage(
+                f"PDF scanné détecté — rendu page 1 de {path_obj.name}… "
+                f"({total_pages} pages)"
+            )
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self._preview_worker = OCRWorker(self.engine, str(path_obj), max_pages=1)
+            self._preview_worker.finished_ok.connect(
+                lambda pages, src: self._on_scanned_preview_ready(pages, src, total_pages)
+            )
+            self._preview_worker.failed.connect(self._on_ocr_failed)
+            self._preview_worker.start()
+        else:
+            # Image file: run full OCR immediately (typically single page)
+            self.statusBar().showMessage(
+                f"Chargement de {path_obj.name}…"
+            )
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            self.worker = OCRWorker(self.engine, str(path_obj))
+            self.worker.finished_ok.connect(self._on_ocr_done)
+            self.worker.failed.connect(self._on_ocr_failed)
+            self.worker.start()
 
     def _open_learned_fast(self, path: str, learned: Dict, total_pages: Optional[int]):
         """Fast open for AI-learned formats with a local parse template.
@@ -604,7 +781,7 @@ class MainWindow(QMainWindow):
         self.manifest_mode = False
         self.source_path = Path(path)
         self._auto_parse_after_open = learned
-        n_label = f" ({total_pages} pages)" if total_pages else ""
+        n_label = f"({total_pages} pages)" if total_pages else ""
         self.statusBar().showMessage(
             f"Format appris : {learned['name']}{n_label} — chargement page 1…"
         )
@@ -637,7 +814,7 @@ class MainWindow(QMainWindow):
 
         learned = self._auto_parse_after_open
         self.tpl_status.setText(
-            f"📄 Format appris : <b>{learned['name']}</b> — parser local en cours…"
+            f"Format appris : <b>{learned['name']}</b> — parser local en cours…"
         )
         self.active_template = None
         self.canvas.load_page(pages[0], self._on_token_clicked)
@@ -658,6 +835,107 @@ class MainWindow(QMainWindow):
         # Run local parser immediately (pdfplumber, very fast)
         QApplication.processEvents()
         self._parse_manifest()
+
+    def _on_scanned_preview_ready(self, pages: List[Page], source_path: str,
+                                   total_pages: int):
+        """Show page 1 of a scanned PDF immediately, then let the user decide
+        whether/how to OCR before learning the format."""
+        QApplication.restoreOverrideCursor()
+        self.pages = pages
+        self.source_path = Path(source_path)
+        self.corrections = CorrectionStore(self.source_path)
+        self.current_extraction = {}
+        self._reset_field_list()
+
+        total = max(total_pages or 1, 1)
+        self.page_combo.blockSignals(True)
+        self.page_combo.clear()
+        self.page_combo.addItem(f"Page 1 / {total}")
+        for i in range(2, total + 1):
+            self.page_combo.addItem(f"Page {i} / {total} (non chargée)")
+        self.page_combo.blockSignals(False)
+        self.current_page_idx = 0
+        self.canvas.load_page(pages[0], self._on_token_clicked)
+
+        self.statusBar().showMessage(
+            f"PDF scanné — {total} page(s). Aperçu page 1. "
+            f"Utilisez «Apprendre ce format» pour lancer l'OCR + apprentissage IA."
+        )
+
+        # Banner at the top of the page to guide the user
+        box = QMessageBox(self)
+        box.setWindowTitle("PDF scanné — aucun texte intégré")
+        box.setIcon(QMessageBox.Information)
+        box.setText(
+            f"<b>{Path(source_path).name}</b> est un PDF scanné ({total} pages).<br><br>"
+            "La page 1 est affichée en aperçu.<br>"
+            "Pour extraire les données, choisissez une action :"
+        )
+        btn_vision = box.addButton(
+            "OCR Cloud Vision + Apprendre", QMessageBox.AcceptRole
+        )
+        btn_local = box.addButton(
+            "OCR local Tesseract + Apprendre", QMessageBox.ActionRole
+        )
+        btn_extract_only = box.addButton(
+            "Extraction IA (sans apprendre)", QMessageBox.ActionRole
+        )
+        box.addButton("Plus tard", QMessageBox.RejectRole)
+
+        # Disable Vision button if not configured
+        from .ai_dialogs import ensure_api_key as _check_key
+        from ..ai import vision_client as _vc
+        if not _vc.is_configured():
+            btn_vision.setToolTip("Clé Cloud Vision non configurée (Menu IA → Configuration).")
+            btn_vision.setEnabled(False)
+
+        box.exec_()
+        clicked = box.clickedButton()
+        if clicked is btn_vision:
+            self._ai_learn_scanned(ocr_engine="vision", total_pages=total)
+        elif clicked is btn_local:
+            self._ai_learn_scanned(ocr_engine="local", total_pages=total)
+        elif clicked is btn_extract_only:
+            self._ai_learn_scanned(ocr_engine="auto", total_pages=total, learn=False)
+
+    def _ai_learn_scanned(self, *, ocr_engine: str, total_pages: int, learn: bool = True):
+        """Launch background OCR (parallel) + AI learn on a scanned PDF.
+
+        `ocr_engine` : "vision" | "local" | "auto"
+        `learn`      : True = learn+extract, False = extract only
+        """
+        if not self.source_path:
+            return
+        from .ai_dialogs import ensure_api_key
+        if not ensure_api_key(self):
+            return
+        label = "OCR + apprentissage IA en cours…"
+        self._set_busy(True, label)
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+
+        # Capture feedback for this format if already known
+        existing = self._detect_learned_format()
+        feedback_text = ""
+        if existing:
+            try:
+                from ..ai.format_registry import get_feedback_text
+                feedback_text = get_feedback_text(existing.get("name") or "")
+            except Exception:
+                feedback_text = ""
+
+        self._learn_worker = AILearnWorker(
+            str(self.source_path),
+            extra_feedback=feedback_text,
+            ocr_engine=ocr_engine,
+        )
+        self._learn_worker.progress.connect(
+            lambda m: self.statusBar().showMessage(m)
+        )
+        self._learn_worker.finished_ok.connect(self._on_ai_learn_done)
+        self._learn_worker.failed.connect(self._on_ai_learn_failed)
+        self._learn_worker.cancelled.connect(self._on_ai_cancelled)
+        self.act_cancel.setEnabled(True)
+        self._learn_worker.start()
 
     def _on_unknown_preview_ready(self, pages: List[Page], source_path: str,
                                    total_pages: int, learned: Optional[Dict] = None):
@@ -702,17 +980,17 @@ class MainWindow(QMainWindow):
             box.setWindowTitle(f"Format appris : {learned.get('name', 'inconnu')}")
             box.setIcon(QMessageBox.Question)
             box.setText(
-                f"Le format <b>{learned.get('name', '?')}</b> est reconnu, mais aucun parser local "
+                f"Le format <b>{learned.get('name', '?')}</b> est reconnu, mais aucun parser local"
                 f"n'est disponible.<br><br><b>Que faire ?</b>"
             )
-            btn_ai = box.addButton("🤖 Extraction IA", QMessageBox.AcceptRole)
-            btn_relearn = box.addButton("🎓 Ré-apprendre ce format", QMessageBox.ActionRole)
+            btn_ai = box.addButton("Extraction IA", QMessageBox.AcceptRole)
+            btn_relearn = box.addButton("Ré-apprendre ce format", QMessageBox.ActionRole)
             box.addButton("Annuler", QMessageBox.RejectRole)
             box.exec_()
             clicked = box.clickedButton()
             if clicked is btn_ai:
                 self._run_ai_extraction(
-                    extra_hints=learned.get("extraction_hints", ""),
+                    extra_hints=self._hints_with_feedback(learned),
                     example_rows=learned.get("example_rows") or [],
                 )
             elif clicked is btn_relearn:
@@ -726,8 +1004,8 @@ class MainWindow(QMainWindow):
             "Aucun format intégré reconnu pour ce document.<br><br>"
             "<b>Que faire ?</b>"
         )
-        btn_ai = box.addButton("🤖 Extraction IA (recommandé)", QMessageBox.AcceptRole)
-        btn_learn = box.addButton("🎓 Apprendre ce format à l'IA", QMessageBox.ActionRole)
+        btn_ai = box.addButton("Extraction IA (recommandé)", QMessageBox.AcceptRole)
+        btn_learn = box.addButton("Apprendre ce format à l'IA", QMessageBox.ActionRole)
         btn_manual = box.addButton("Choisir manuellement…", QMessageBox.ActionRole)
         box.addButton("Annuler", QMessageBox.RejectRole)
         box.exec_()
@@ -799,14 +1077,14 @@ class MainWindow(QMainWindow):
         self.current_page_idx = 0
         self.canvas.load_page(pages[0], self._on_token_clicked)
         self.tpl_status.setText(
-            f"📄 Mode manifeste — format : <b>{fmt.upper().replace('_', ' ')}</b>. "
+            f"Mode manifeste — format : <b>{fmt.upper().replace('_', ' ')}</b>."
             f"Analyseur en cours d'exécution…"
         )
         self.active_template = None
 
         # Launch the state-machine parser in background
         self.manifest_parser = ManifestParser(config_name=fmt)
-        self.statusBar().showMessage(f"Analyse intelligente du manifeste ({fmt})…")
+        self._set_busy(True, f"Analyse intelligente du manifeste ({fmt})…")
         self._parse_worker = ManifestParseWorker(
             self.manifest_parser, fmt, source_path
         )
@@ -844,8 +1122,8 @@ class MainWindow(QMainWindow):
         match = self.tpl_mgr.find_matching_template(pages[0])
         if match:
             self.active_template = match
-            badge = " <b>[TABLE]</b>" if match.table_mode else ""
-            self.tpl_status.setText(f"✓ Modèle auto-détecté : <b>{match.name}</b>{badge}")
+            badge = "<b>[TABLE]</b>" if match.table_mode else ""
+            self.tpl_status.setText(f"Modèle auto-détecté : <b>{match.name}</b>{badge}")
             self._apply_template(match)
             self.statusBar().showMessage(
                 f"Modèle « {match.name} » appliqué automatiquement. Vérifiez et validez."
@@ -853,7 +1131,7 @@ class MainWindow(QMainWindow):
         else:
             self.active_template = None
             self.tpl_status.setText(
-                "⚠ Aucun modèle correspondant — cartographie automatique en cours. "
+                "Aucun modèle correspondant — cartographie automatique en cours."
                 "Corrigez/dessinez les zones, puis enregistrez comme modèle."
             )
             self._run_auto_mapping()
@@ -900,7 +1178,7 @@ class MainWindow(QMainWindow):
             it = self.field_list.item(i)
             key = it.data(Qt.UserRole)
             label = next(f["label"] for f in self.fields_def if f["key"] == key)
-            it.setText(f"○  {label}")
+            it.setText(label)
             it.setForeground(QColor("#222"))
 
     def _refresh_field_indicators(self):
@@ -911,10 +1189,10 @@ class MainWindow(QMainWindow):
             if key in self.current_extraction and self.current_extraction[key].get("value"):
                 val = self.current_extraction[key]["value"]
                 short = (val[:25] + "…") if len(val) > 25 else val
-                it.setText(f"●  {label}  →  {short}")
+                it.setText(f"{label}  —  {short}")
                 it.setForeground(QColor("#0a7d2c"))
             else:
-                it.setText(f"○  {label}")
+                it.setText(label)
                 it.setForeground(QColor("#222"))
 
     def _on_field_selected(self, item: QListWidgetItem):
@@ -1028,7 +1306,7 @@ class MainWindow(QMainWindow):
     def _refresh_template_list(self):
         self.tpl_list.clear()
         for tpl in self.tpl_mgr.list_templates():
-            it = QListWidgetItem(f"{tpl.name}   ({tpl.shipowner})")
+            it = QListWidgetItem(f"{tpl.name} ({tpl.shipowner})")
             it.setData(Qt.UserRole, tpl.name)
             self.tpl_list.addItem(it)
 
@@ -1048,8 +1326,8 @@ class MainWindow(QMainWindow):
             self, "Type de modèle",
             "Ce modèle décrit-il un TABLEAU qui se répète ligne par ligne ?\n\n"
             "OUI → les zones décrivent UNE ligne ; à l'application l'outil\n"
-            "          détectera chaque autre ligne dans la même bande\n"
-            "          tabulaire et produira une ligne Excel par ligne détectée.\n\n"
+            "détectera chaque autre ligne dans la même bande\n"
+            "tabulaire et produira une ligne Excel par ligne détectée.\n\n"
             "NON → modèle standard à enregistrement unique (une ligne par page).",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
@@ -1090,7 +1368,7 @@ class MainWindow(QMainWindow):
         )
         self.tpl_mgr.save(tpl)
         self.active_template = tpl
-        self.tpl_status.setText(f"✓ Modèle « <b>{tpl.name}</b> » enregistré et actif.")
+        self.tpl_status.setText(f"Modèle « <b>{tpl.name}</b> » enregistré et actif.")
         self._refresh_template_list()
         QMessageBox.information(self, "Modèle enregistré",
                                 f"Modèle « {tpl.name} » enregistré.\n"
@@ -1107,8 +1385,8 @@ class MainWindow(QMainWindow):
             return
         self.active_template = tpl
         self._apply_template(tpl)
-        badge = " [TABLEAU]" if tpl.table_mode else ""
-        self.tpl_status.setText(f"✓ Modèle « <b>{tpl.name}</b> »{badge} appliqué manuellement.")
+        badge = "[TABLEAU]" if tpl.table_mode else ""
+        self.tpl_status.setText(f"Modèle « <b>{tpl.name}</b> »{badge} appliqué manuellement.")
 
     def _apply_template(self, tpl: Template):
         """Apply template to the CURRENT page (re-OCRs each field with focused OCR)."""
@@ -1251,7 +1529,7 @@ class MainWindow(QMainWindow):
         self.extracted_rows.extend(rows)
         self.queue_label.setText(f"File : {len(self.extracted_rows)} lignes")
         self.statusBar().showMessage(
-            f"{len(rows)} ligne(s) ajoutée(s) depuis la page {self.current_page_idx + 1}. "
+            f"{len(rows)} ligne(s) ajoutée(s) depuis la page {self.current_page_idx + 1}."
             f"File totale : {len(self.extracted_rows)}."
         )
 
@@ -1280,7 +1558,7 @@ class MainWindow(QMainWindow):
         self.queue_label.setText(f"File : {len(self.extracted_rows)} lignes")
         QMessageBox.information(
             self, "Traitement terminé",
-            f"{added} ligne(s) ajoutée(s) depuis {len(self.pages)} page(s) "
+            f"{added} ligne(s) ajoutée(s) depuis {len(self.pages)} page(s)"
             f"avec le modèle « {self.active_template.name} ».",
         )
         # Refresh current page display (it may have been overwritten above)
@@ -1348,7 +1626,7 @@ class MainWindow(QMainWindow):
         if target.suffix.lower() != ".pdf":
             QMessageBox.information(
                 self, "PDF requis",
-                "L'apprentissage de format nécessite un PDF avec texte intégré "
+                "L'apprentissage de format nécessite un PDF avec texte intégré"
                 "(utilise pdfplumber)."
             )
             return
@@ -1356,7 +1634,7 @@ class MainWindow(QMainWindow):
         dlg = FormatTrainerDialog(target, parent=self)
         if dlg.exec_() == FormatTrainerDialog.Accepted:
             self.statusBar().showMessage(
-                "✓ Format enregistré. Ouvrez un document de cet armateur — "
+                "Format enregistré. Ouvrez un document de cet armateur —"
                 "il sera détecté automatiquement."
             )
 
@@ -1371,7 +1649,7 @@ class MainWindow(QMainWindow):
         menu = self._parse_menu
         menu.clear()
 
-        a_auto = menu.addAction("⚡ Auto-détection (recommandé)")
+        a_auto = menu.addAction("Auto-détection (recommandé)")
         a_auto.triggered.connect(self._parse_manifest)
 
         # List all learned formats — user can FORCE one regardless of detection.
@@ -1388,8 +1666,8 @@ class MainWindow(QMainWindow):
                 tpl = fmt.get("parse_template") or {}
                 rc = tpl.get("row_count")
                 origin = "fait main" if fmt.get("model") == "handcrafted" else (fmt.get("model") or "ia")
-                scan_tag = " 📷 scan" if fmt.get("is_scanned") else ""
-                label = f"  ▸ {fmt.get('name', '?')}{scan_tag}  ({origin}"
+                scan_tag = "scan" if fmt.get("is_scanned") else ""
+                label = f"  {fmt.get('name', '?')}{scan_tag}  ({origin}"
                 if rc:
                     label += f", {rc} lignes échantillon"
                 label += ")"
@@ -1397,9 +1675,9 @@ class MainWindow(QMainWindow):
                 act.triggered.connect(lambda _checked=False, f=fmt: self._apply_specific_parser(f))
 
         menu.addSeparator()
-        a_learn = menu.addAction("🎓 Apprendre / régénérer un parseur via IA…")
+        a_learn = menu.addAction("Apprendre / régénérer un parseur via IA…")
         a_learn.triggered.connect(self._ai_learn_format)
-        a_ai = menu.addAction("🤖 Extraction IA universelle (sans parseur local)")
+        a_ai = menu.addAction("Extraction IA universelle (sans parseur local)")
         a_ai.triggered.connect(self._ai_extract)
 
     def _apply_specific_parser(self, learned: Dict):
@@ -1419,6 +1697,8 @@ class MainWindow(QMainWindow):
             )
             return
 
+        # Track which format produced these rows (for feedback dialog).
+        self._active_learned_format = learned
         # Scanned format: OCR-then-parse via worker (long, async).
         if learned.get("is_scanned"):
             if not ensure_api_key(self):
@@ -1455,7 +1735,7 @@ class MainWindow(QMainWindow):
         if not rows:
             QMessageBox.information(
                 self, "Aucune ligne",
-                f"Le parseur <b>{learned.get('name', '?')}</b> n'a extrait aucune ligne "
+                f"Le parseur <b>{learned.get('name', '?')}</b> n'a extrait aucune ligne"
                 f"de ce document. Le format est probablement différent."
             )
             return
@@ -1470,14 +1750,42 @@ class MainWindow(QMainWindow):
         if not self.manifest_parser.available:
             QMessageBox.critical(
                 self, "Dépendance manquante",
-                "pdfplumber est requis.\n\nExécutez :\n  pip install pdfplumber"
+                "pdfplumber est requis.\n\nExécutez :\n pip install pdfplumber"
             )
             return
 
         # ---- Priority 1: AI-LEARNED format WITH a usable local parse template ----
         # The user explicitly taught this format — trust it over generic built-ins.
-        learned = self._detect_learned_format()
+        # On scanned PDFs we OCR a 2-page sample on-the-fly for signature
+        # matching (otherwise no learned format can EVER match a scan).
+        is_scan = not self._has_embedded_text()
+        if is_scan:
+            self.statusBar().showMessage(
+                "Document scanné — OCR rapide pour détection de format appris…"
+            )
+            QApplication.processEvents()
+        learned = self._detect_learned_format(allow_ocr_sample=is_scan)
+        if learned and not template_is_usable(learned.get("parse_template") or {}):
+            # Detected a learned format but its parser is unusable (no
+            # parse_code AND no row_patterns) — surface this so the user
+            # understands why the IA path is being proposed.
+            self.statusBar().showMessage(
+                f"Format appris '{learned.get('name')}' reconnu mais sans parser local "
+                f"utilisable — repli IA.", 8000
+            )
+        elif not learned:
+            try:
+                n_learned = len(list_learned())
+            except Exception:
+                n_learned = 0
+            if n_learned:
+                self.statusBar().showMessage(
+                    f"Aucun des {n_learned} format(s) appris ne correspond à ce document "
+                    f"(signatures non trouvées dans le texte).", 8000
+                )
         if learned and template_is_usable(learned.get("parse_template") or {}):
+            # Track for feedback attribution.
+            self._active_learned_format = learned
             # Scanned learned format → reuse the same OCR-then-template path
             # as the manual "force parser" menu item.
             if learned.get("is_scanned"):
@@ -1501,13 +1809,13 @@ class MainWindow(QMainWindow):
             # Empty result — propose AI fallback
             if QMessageBox.question(
                 self, "Parser local sans résultat",
-                f"Le parser local du format <b>{learned['name']}</b> n'a extrait "
+                f"Le parser local du format <b>{learned['name']}</b> n'a extrait"
                 f"aucune ligne sur ce document.<br><br>"
                 f"Lancer une extraction IA en repli ?",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
             ) == QMessageBox.Yes:
                 self._run_ai_extraction(
-                    extra_hints=learned.get("extraction_hints", ""),
+                    extra_hints=self._hints_with_feedback(learned),
                     example_rows=learned.get("example_rows") or [],
                 )
             return
@@ -1519,15 +1827,15 @@ class MainWindow(QMainWindow):
         if learned and not fmt:
             if QMessageBox.question(
                 self, f"Format appris : {learned['name']}",
-                f"Le format <b>{learned['name']}</b> est reconnu mais aucun "
+                f"Le format <b>{learned['name']}</b> est reconnu mais aucun"
                 f"parser local n'a été généré (ancien apprentissage).<br><br>"
                 f"Lancer l'extraction <b>IA</b> ?<br>"
-                f"<i>Astuce : utilisez « Apprendre le format » à nouveau pour "
+                f"<i>Astuce : utilisez « Apprendre le format » à nouveau pour"
                 f"générer un parser local rapide.</i>",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
             ) == QMessageBox.Yes:
                 self._run_ai_extraction(
-                    extra_hints=learned.get("extraction_hints", ""),
+                    extra_hints=self._hints_with_feedback(learned),
                     example_rows=learned.get("example_rows") or [],
                 )
             return
@@ -1546,8 +1854,8 @@ class MainWindow(QMainWindow):
                 "Aucun format intégré reconnu pour ce document.<br><br>"
                 "<b>Que faire ?</b>"
             )
-            btn_ai = box.addButton("🤖 Extraction IA (recommandé)", QMessageBox.AcceptRole)
-            btn_learn = box.addButton("🎓 Apprendre ce format à l'IA", QMessageBox.ActionRole)
+            btn_ai = box.addButton("Extraction IA (recommandé)", QMessageBox.AcceptRole)
+            btn_learn = box.addButton("Apprendre ce format à l'IA", QMessageBox.ActionRole)
             btn_manual = box.addButton("Choisir manuellement…", QMessageBox.ActionRole)
             btn_cancel = box.addButton("Annuler", QMessageBox.RejectRole)
             box.exec_()
@@ -1600,6 +1908,7 @@ class MainWindow(QMainWindow):
 
     def _on_parse_done(self, rows: list, source_path: str):
         QApplication.restoreOverrideCursor()
+        self._set_busy(False)
         if not rows:
             QMessageBox.warning(self, "Aucune donnée extraite",
                                 "L'analyseur n'a trouvé aucun enregistrement BL.\n\n"
@@ -1613,14 +1922,17 @@ class MainWindow(QMainWindow):
         self.btn_reopen_review.setEnabled(True)
         # Open the editable review dialog
         src_path = Path(source_path)
-        dlg = ManifestReviewDialog(rows, src_path, parent=self)
+        dlg = ManifestReviewDialog(
+            rows, src_path, parent=self,
+            active_format=self._active_learned_format,
+        )
         dlg.exec_()
         self.corrections = CorrectionStore(src_path)
         edited_rows = dlg.rows
         self.extracted_rows.extend(edited_rows)
         self.queue_label.setText(f"File : {len(self.extracted_rows)} lignes")
         self.statusBar().showMessage(
-            f"✓ {len(edited_rows)} conteneurs ajoutés à la file depuis "
+            f"{len(edited_rows)} conteneurs ajoutés à la file depuis"
             f"{src_path.name}. Cliquez sur « Exporter » pour générer l'Excel."
         )
 
@@ -1630,13 +1942,16 @@ class MainWindow(QMainWindow):
             return
         src_path = Path(self._last_extract_source) if self._last_extract_source else None
         rows_copy = [dict(r) for r in self._last_extract_rows]
-        dlg = ManifestReviewDialog(rows_copy, src_path, parent=self)
+        dlg = ManifestReviewDialog(
+            rows_copy, src_path, parent=self,
+            active_format=self._active_learned_format,
+        )
         dlg.exec_()
         if dlg.rows != rows_copy:
             reply = QMessageBox.question(
                 self, "Mettre à jour la file ?",
                 "Des modifications ont été apportées.<br><br>"
-                "Voulez-vous <b>remplacer</b> le dernier lot de la file "
+                "Voulez-vous <b>remplacer</b> le dernier lot de la file"
                 f"({len(rows_copy)} lignes) par la version révisée ?",
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
             )
@@ -1646,12 +1961,12 @@ class MainWindow(QMainWindow):
                 self.extracted_rows.extend(dlg.rows)
                 self.queue_label.setText(f"File : {len(self.extracted_rows)} lignes")
                 self.statusBar().showMessage(
-                    f"✓ File mise à jour : {len(self.extracted_rows)} lignes."
+                    f"File mise à jour : {len(self.extracted_rows)} lignes."
                 )
 
     def _on_parse_failed(self, msg: str):
         QApplication.restoreOverrideCursor()
-        self.statusBar().showMessage("Échec de l'analyse.")
+        self._set_busy(False, "Échec de l'analyse.")
         QMessageBox.critical(self, "Erreur d'analyse", msg)
 
     # ── Scanned document helpers ─────────────────────────────────────────────
@@ -1666,7 +1981,15 @@ class MainWindow(QMainWindow):
             return False
 
     def _run_scanned_with_engine_choice(self, fmt):
-        """Ask user which OCR engine to use for a scanned PDF (or auto from pref)."""
+        """For a scanned PDF, ask the user which OCR engine to use, then
+        always route to the AI extraction pipeline.
+
+        The legacy SAKINA hardcoded extractor only works on one specific
+        format (DSM LIVERPOOL questionnaires) — using it as a generic
+        fallback returned a single junk row on most documents. We now
+        always use the universal AI pipeline (OCR → Gemini/DeepSeek
+        ensemble → structured rows) regardless of the OCR engine.
+        """
         from PyQt5.QtWidgets import QCheckBox
         pref = get_ocr_engine()
 
@@ -1675,23 +1998,22 @@ class MainWindow(QMainWindow):
         elif pref == "local":
             engine = "local"
         else:
-            # No saved preference — ask
             box = QMessageBox(self)
             box.setWindowTitle("Document scanné détecté")
             box.setIcon(QMessageBox.Question)
             box.setText(
                 "Ce document est un <b>scan</b> (texte non intégré).<br><br>"
-                "<b>Quel moteur OCR utiliser ?</b>"
+                "<b>Quel moteur OCR utiliser ?</b><br>"
+                "<i>Le texte OCRisé sera ensuite envoyé à l'IA pour extraction structurée.</i>"
             )
             btn_cloud = box.addButton(
-                "☁ Cloud Vision (rapide, qualité supérieure)", QMessageBox.AcceptRole
+                "Cloud Vision (rapide, qualité supérieure)", QMessageBox.AcceptRole
             )
             btn_local = box.addButton(
-                "💻 OCR local pytesseract (hors-ligne)", QMessageBox.ActionRole
+                "OCR local pytesseract (hors-ligne)", QMessageBox.ActionRole
             )
-            btn_cancel = box.addButton("Annuler", QMessageBox.RejectRole)
+            box.addButton("Annuler", QMessageBox.RejectRole)
 
-            # "Remember" checkbox inside message box
             cb_remember = QCheckBox("Retenir ce choix pour les prochains documents")
             box.setCheckBox(cb_remember)
 
@@ -1706,15 +2028,15 @@ class MainWindow(QMainWindow):
             if cb_remember.isChecked():
                 set_ocr_engine(engine)
 
-        if engine == "cloud_vision":
-            if not ensure_api_key(self):
-                return
-            self._run_ai_extraction()
-        else:
-            self._run_scanned_extraction(fmt or "sakina")
+        if not ensure_api_key(self):
+            return
+        # Both branches now go through the universal AI extractor.
+        # The OCR engine choice propagates via set_ocr_engine() — the
+        # extractor reads it via gemini_client.get_ocr_engine().
+        self._run_ai_extraction()
 
     def _run_scanned_extraction(self, fmt: str):
-        self.statusBar().showMessage(f"OCR + extraction ({fmt.upper()})…  ⏳")
+        self.statusBar().showMessage(f"OCR + extraction ({fmt.upper()})…")
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self._scanned_worker = ScannedExtractWorker(str(self.source_path), fmt)
         self._scanned_worker.finished_ok.connect(self._on_parse_done)
@@ -1724,31 +2046,78 @@ class MainWindow(QMainWindow):
     # ============================================================
     # AI extraction (Google Gemini) — universal fallback
     # ============================================================
-    def _detect_learned_format(self):
-        """Return matching learned-format dict for the current document, or None."""
+    def _detect_learned_format(self, allow_ocr_sample: bool = False):
+        """Return matching learned-format dict for the current document, or None.
+
+        On scanned PDFs the embedded text is empty and ``self.pages`` only
+        holds rendered images (no OCR tokens) until the user explicitly
+        runs OCR. To allow learned-format auto-detection on scans, set
+        ``allow_ocr_sample=True`` — the first 2 pages will be OCR'd via
+        the user's preferred engine for signature matching only.
+        """
         if not self.source_path:
             return None
         try:
             import pdfplumber
             with pdfplumber.open(str(self.source_path)) as pdf:
-                # Read up to first 2 pages for signature matching
+                # Read up to first 3 pages for signature matching (signature
+                # tokens may sit on a continuation page when page 1 is a
+                # cover sheet).
                 chunks = []
-                for p in pdf.pages[:2]:
+                for p in pdf.pages[:3]:
                     chunks.append(p.extract_text() or "")
                 text = "\n".join(chunks)
         except Exception:
             text = ""
-        if not text.strip():
-            # Fallback: use OCR'd text from already-loaded pages, if any
-            if self.pages:
-                text = " ".join(t.text for t in (self.pages[0].tokens or []) if t.text)
+        if not text.strip() and self.pages:
+            # Concatenate OCR text from ALL pages already loaded
+            parts = []
+            for pg in self.pages:
+                if pg.tokens:
+                    parts.append(" ".join(t.text for t in pg.tokens if t.text))
+            text = "\n".join(parts)
+        if not text.strip() and allow_ocr_sample:
+            # Last resort: OCR a small sample (2 pages) just for signature
+            # detection. This is the only way to match a learned scanned
+            # format on a fresh PDF that hasn't been OCR'd yet.
+            try:
+                from ..ai import vision_client
+                from ..ai.gemini_client import get_ocr_engine
+                pref = get_ocr_engine()
+                if pref == "cloud_vision":
+                    text = vision_client.ocr_pdf(str(self.source_path), max_pages=2)
+                elif pref == "local":
+                    text = vision_client.local_ocr_pdf(str(self.source_path), max_pages=2)
+                else:
+                    text = vision_client.ocr_scanned_pdf(str(self.source_path), max_pages=2)
+            except Exception:
+                text = ""
         return detect_learned(text) if text else None
+
+    def _hints_with_feedback(self, learned: dict) -> str:
+        """Combine the format's static hints with all accumulated user feedback."""
+        if not learned:
+            return ""
+        hints = (learned.get("extraction_hints") or "").strip()
+        try:
+            from ..ai.format_registry import get_feedback_text
+            fb = get_feedback_text(learned.get("name") or "")
+        except Exception:
+            fb = ""
+        if fb:
+            block = "\n\nFEEDBACK UTILISATEUR (corrections deja signalees, a respecter) :\n" + fb
+            return (hints + block) if hints else block.strip()
+        return hints
 
     def _ai_configure(self):
         GeminiConfigDialog(self).exec_()
 
     def _ai_manage_formats(self):
         LearnedFormatsDialog(self).exec_()
+
+    def _ai_open_dev_tools(self):
+        from .ai_dialogs import DeveloperToolsDialog
+        DeveloperToolsDialog(self).exec_()
 
     def _ai_extract(self):
         """Toolbar/menu entry: launch universal AI extraction on the current PDF."""
@@ -1760,15 +2129,19 @@ class MainWindow(QMainWindow):
                                 "L'extraction IA ne fonctionne que sur les fichiers PDF.")
             return
         # Auto-pick learned hints + few-shot examples if a format is known for this doc
-        learned = self._detect_learned_format()
-        hints = learned.get("extraction_hints", "") if learned else ""
+        is_scan = not self._has_embedded_text()
+        learned = self._detect_learned_format(allow_ocr_sample=is_scan)
+        # Track for feedback attribution even when running the universal IA path.
+        if learned:
+            self._active_learned_format = learned
+        hints = self._hints_with_feedback(learned) if learned else ""
         examples = learned.get("example_rows") or [] if learned else []
         self._run_ai_extraction(extra_hints=hints, example_rows=examples)
 
     def _run_ai_extraction(self, extra_hints: str = "", example_rows: list | None = None):
         if not ensure_api_key(self):
             return
-        self.statusBar().showMessage("🤖 Extraction IA en cours…  ⏳")
+        self._set_busy(True, "Extraction IA en cours…")
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self._ai_worker = AIExtractWorker(
             str(self.source_path),
@@ -1776,7 +2149,7 @@ class MainWindow(QMainWindow):
             example_rows=example_rows or [],
         )
         self._ai_worker.progress.connect(
-            lambda msg: self.statusBar().showMessage(f"🤖 {msg}")
+            lambda msg: self.statusBar().showMessage(f"{msg}")
         )
         self._ai_worker.finished_ok.connect(self._on_ai_extract_done)
         self._ai_worker.failed.connect(self._on_parse_failed)
@@ -1786,6 +2159,7 @@ class MainWindow(QMainWindow):
 
     def _on_ai_extract_done(self, rows: list, source_path: str):
         QApplication.restoreOverrideCursor()
+        self._set_busy(False)
         self.act_cancel.setEnabled(False)
         if not rows:
             QMessageBox.warning(
@@ -1799,8 +2173,8 @@ class MainWindow(QMainWindow):
 
     def _on_ai_cancelled(self):
         QApplication.restoreOverrideCursor()
+        self._set_busy(False, "Extraction IA annulée par l'utilisateur.")
         self.act_cancel.setEnabled(False)
-        self.statusBar().showMessage("⏹ Extraction IA annulée par l'utilisateur.")
 
     def _cancel_ai(self):
         """Stop any running AI/OCR worker (extract or learn)."""
@@ -1814,7 +2188,7 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
         if stopped:
-            self.statusBar().showMessage("⏹ Demande d'annulation envoyée…")
+            self.statusBar().showMessage("Demande d'annulation envoyée…")
         else:
             self.act_cancel.setEnabled(False)
 
@@ -1829,17 +2203,78 @@ class MainWindow(QMainWindow):
             return
         if not ensure_api_key(self):
             return
-        self.statusBar().showMessage("🎓 Analyse du format en cours…  ⏳")
+        self._set_busy(True, "Analyse du format en cours…")
         QApplication.setOverrideCursor(Qt.WaitCursor)
-        self._learn_worker = AILearnWorker(str(self.source_path))
+        # Inject any feedback already attached to the format we believe
+        # is active for this document so re-learning incorporates the
+        # user's corrections.
+        # Resolution priority:
+        #   1. self._active_learned_format (set when this format was
+        #      actually used to extract — most reliable, especially on
+        #      scanned PDFs where text-based detection fails).
+        #   2. Fresh detection (with on-the-fly OCR sample for scans).
+        existing = self._active_learned_format
+        if not existing:
+            is_scan = not self._has_embedded_text()
+            existing = self._detect_learned_format(allow_ocr_sample=is_scan)
+        feedback_text = ""
+        if existing:
+            try:
+                from ..ai.format_registry import get_feedback_text
+                feedback_text = get_feedback_text(existing.get("name") or "")
+            except Exception:
+                feedback_text = ""
+            if feedback_text:
+                self.statusBar().showMessage(
+                    f"Ré-apprentissage avec {feedback_text.count(chr(10) + '[')} "
+                    f"feedback(s) pour « {existing.get('name')} »…"
+                )
+        # Pass the previously-generated parser code so the model can apply
+        # feedback as a correction to a known baseline.
+        previous_code = ""
+        if existing:
+            previous_code = (
+                ((existing.get("parse_template") or {}).get("parse_code")) or ""
+            )
+        # Also detect the right OCR engine for scanned re-learning
+        from ..ai.gemini_client import get_ocr_engine
+        ocr_pref = get_ocr_engine() or "auto"
+        # Map "cloud_vision" → "vision" expected by AILearnWorker
+        ocr_engine_kw = {"cloud_vision": "vision"}.get(ocr_pref, ocr_pref)
+        self._learn_worker = AILearnWorker(
+            str(self.source_path),
+            extra_feedback=feedback_text,
+            ocr_engine=ocr_engine_kw,
+            previous_code=previous_code,
+        )
+        # Open a real-time progress dialog so the user can watch the
+        # ensemble providers work in live. The dialog OWNS the worker
+        # signals — we keep main-window connections too so existing
+        # downstream handlers still fire.
+        from .ai_dialogs import LearnProgressDialog
+        title = (
+            f"Ré-apprentissage de « {existing.get('name')} » avec feedback…"
+            if (existing and feedback_text)
+            else "Apprentissage IA en cours…"
+        )
+        self._learn_progress_dlg = LearnProgressDialog(
+            self._learn_worker, parent=self, title=title,
+        )
+        self._learn_worker.progress.connect(
+            lambda m: self.statusBar().showMessage(m)
+        )
         self._learn_worker.finished_ok.connect(self._on_ai_learn_done)
         self._learn_worker.failed.connect(self._on_ai_learn_failed)
         self._learn_worker.cancelled.connect(self._on_ai_cancelled)
         self.act_cancel.setEnabled(True)
         self._learn_worker.start()
+        # Show the dialog AFTER starting the worker so the first messages
+        # are captured by the connected slot.
+        self._learn_progress_dlg.show()
 
     def _on_ai_learn_done(self, learned: dict):
         QApplication.restoreOverrideCursor()
+        self._set_busy(False)
         self.act_cancel.setEnabled(False)
         tpl = (learned or {}).get("parse_template") or {}
         has_name = bool((learned or {}).get("format_name"))
@@ -1863,14 +2298,14 @@ class MainWindow(QMainWindow):
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
             )
             if reply == QMessageBox.Yes:
-                hints = learned.get("extraction_hints", "")
+                hints = self._hints_with_feedback(learned)
                 examples = learned.get("example_rows") or []
                 self._run_ai_extraction(extra_hints=hints, example_rows=examples)
 
     def _on_ai_learn_failed(self, msg: str):
         QApplication.restoreOverrideCursor()
+        self._set_busy(False, "Échec de l'analyse IA.")
         self.act_cancel.setEnabled(False)
-        self.statusBar().showMessage("Échec de l'analyse IA.")
         # Self-heal: detect the "google-genai not installed" case and offer a
         # one-click install. Needed to recover users whose updater is too old
         # to refresh requirements properly (the updater itself is a shipped .exe).
@@ -1879,7 +2314,7 @@ class MainWindow(QMainWindow):
             box.setIcon(QMessageBox.Warning)
             box.setWindowTitle("Dépendance manquante")
             box.setText(
-                "Le package <b>google-genai</b> requis pour l'apprentissage IA "
+                "Le package <b>google-genai</b> requis pour l'apprentissage IA"
                 "n'est pas installé dans cet environnement.<br><br>"
                 "Voulez-vous l'installer maintenant ? (~30 s, connexion internet requise)"
             )
@@ -1910,7 +2345,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "Installation réussie",
                 "google-genai a été installé.<br><br>"
-                "<b>Veuillez redémarrer l'application</b> pour que la nouvelle "
+                "<b>Veuillez redémarrer l'application</b> pour que la nouvelle"
                 "bibliothèque soit chargée."
             )
             self.statusBar().showMessage("google-genai installé — redémarrez l'application.")
@@ -1946,7 +2381,7 @@ class MainWindow(QMainWindow):
         ed.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
         v.addWidget(ed, 1)
         h = QHBoxLayout()
-        btn_open = QPushButton("📂 Ouvrir le dossier des logs")
+        btn_open = QPushButton("Ouvrir le dossier des logs")
         def _open_folder():
             import os, subprocess
             subprocess.Popen(f'explorer "{path.parent}"')
@@ -1992,9 +2427,9 @@ class MainWindow(QMainWindow):
         if not manifest_rows:
             QMessageBox.warning(
                 self, "Format incompatible",
-                "L'export MIDAS attend des lignes issues de l'analyse intelligente "
-                "du manifeste (bouton « 🔍 Analyse intelligente »).\n\n"
-                "Les lignes issues d'un modèle template ne contiennent pas tous les "
+                "L'export MIDAS attend des lignes issues de l'analyse intelligente"
+                "du manifeste (bouton « Analyse intelligente »).\n\n"
+                "Les lignes issues d'un modèle template ne contiennent pas tous les"
                 "champs requis (Navire, Numéro BL, Conteneur…).",
             )
             return
@@ -2016,6 +2451,6 @@ class MainWindow(QMainWindow):
             self, "Export MIDAS terminé",
             f"{len(manifest_rows)} ligne(s) exportée(s) au format MIDAS vers :\n{out}\n\n"
             f"Colonnes laissées vides (à remplir par l'équipe d'intégration) :\n"
-            f"  • Numéro escale\n  • Index\n  • Range\n  • Code transitaire / chargeur / marchandise\n"
-            f"  • Manutentionaire",
+            f"• Numéro escale\n • Index\n • Range\n • Code transitaire / chargeur / marchandise\n"
+            f"• Manutentionaire",
         )
